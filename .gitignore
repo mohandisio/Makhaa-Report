@@ -16,3 +16,6 @@ data/reports/
 
 # Claude
 .claude/
+
+# macOS
+.DS_Store

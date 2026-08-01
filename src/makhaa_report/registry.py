@@ -47,10 +47,15 @@ BRANDS: tuple[Brand, ...] = (
     Brand(
         slug="moka_and_co",
         display_name="Moka & Co",
-        locator_url="https://mokanco.com/pages/locations",
+        locator_url="https://mokanco.com/locations/",
         method="scrape",
-        band=(23, 35),
-        notes="Two parallel URL structures on one domain — scrape exactly one or double-count.",
+        band=(35, 50),
+        notes=(
+            "WordPress; /pages/locations redirects to /locations/. Every "
+            "address is on that one page, so the per-store detail pages at "
+            "/<slug>/ are deliberately not fetched — reading both would "
+            "double-count. Marks its pipeline with a Coming Soon term."
+        ),
     ),
     Brand(
         slug="shibam",

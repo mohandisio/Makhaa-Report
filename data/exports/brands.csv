@@ -6,7 +6,7 @@ haraz,Haraz Coffee House,https://harazcoffeehouse.com,scrape,55,75,1,,[],"16 per
 heyma,Heyma,https://heymacoffeeca.com,scrape,1,4,0,,[],
 matari,Matari Coffee,https://mataricoffee.com/locations,scrape,6,12,0,,[],US census: exclude the Mississauga ON store.
 mohka_house,Mohka House,,manual,0,5,0,"Oakland, CA",[],No website; hand-maintained CSV.
-moka_and_co,Moka & Co,https://mokanco.com/pages/locations,scrape,23,35,0,,[],Two parallel URL structures on one domain — scrape exactly one or double-count.
+moka_and_co,Moka & Co,https://mokanco.com/locations/,scrape,35,50,0,,[],"WordPress; /pages/locations redirects to /locations/. Every address is on that one page, so the per-store detail pages at /<slug>/ are deliberately not fetched — reading both would double-count. Marks its pipeline with a Coming Soon term."
 mokafe,MOKAFÉ,https://mymokafe.com,scrape,1,12,0,,[],"Prior research disagreed on which storefronts are actually MOKAFÉ; verify by hand before publishing, and tighten the band once the scraper settles. Distinct company from Moka & Co."
 qahwah_house,Qahwah House,https://qahwahhouse.com,scrape,24,35,0,,[],/locations/<slug> pages discovered via sitemap.xml.
 qamaria,Qamaria Yemeni Coffee,https://www.qamariacoffee.com/cafes,scrape,44,60,1,,[],"Storepoint map widget; data comes from its API, not Squarespace. Catering service-area rows and non-US stores are excluded. The feed carries no coming-soon flag, so the announced pipeline is invisible for this brand."

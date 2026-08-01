@@ -10,9 +10,11 @@ from typing import Callable
 from ..fetch import Fetch
 from ..models import RawLocation
 from .json_sites import scrape_qamaria
+from .single_page import scrape_moka_and_co
 
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
 
 SCRAPERS: dict[str, ScrapeFn] = {
+    "moka_and_co": scrape_moka_and_co,
     "qamaria": scrape_qamaria,
 }
