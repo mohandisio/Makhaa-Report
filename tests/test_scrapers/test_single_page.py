@@ -8,6 +8,7 @@ from makhaa_report.registry import get_brand
 from makhaa_report.scrapers.single_page import (
     scrape_arwa,
     scrape_delah,
+    scrape_heyma,
     scrape_matari,
     scrape_moka_and_co,
     scrape_qatra,
@@ -151,3 +152,20 @@ def test_qatra_takes_coordinates_from_the_schema_block(fixture_fetch):
     louis_pasteur = next(r for r in rows if r.street.startswith("7302"))
     assert (louis_pasteur.lat, louis_pasteur.lon) == (29.5021063, -98.5756263)
     assert sum(r.lat is None for r in rows) == 2
+
+
+def test_heyma_reads_address_and_coordinates_from_the_map_link(fixture_fetch):
+    rows = scrape_heyma(fixture_fetch("heyma"))
+
+    low, high = get_brand("heyma").band
+    assert low <= len(rows) <= high
+    assert all(r.lat is not None for r in rows)
+
+    berkeley = next(r for r in rows if r.city == "Berkeley")
+    assert berkeley.street == "1122 University Avenue"
+    # Published with a ZIP+4.
+    assert berkeley.postal == "94702"
+    assert (berkeley.lat, berkeley.lon) == (37.8690241, -122.2909521)
+
+    # The tel: links share the same markup and must not become stores.
+    assert all(r.street for r in rows)

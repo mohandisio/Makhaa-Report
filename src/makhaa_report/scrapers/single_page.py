@@ -310,3 +310,55 @@ def scrape_qatra(fetch: Fetch) -> list[RawLocation]:
         )
 
     return rows
+
+
+HEYMA_URL = "https://www.heymacoffeeca.com/locations"
+
+# Heyma's map links are directions URLs, so the coordinates ride in the
+# destination parameter rather than a place id.
+_DADDR_COORDS = re.compile(r"daddr=(-?\d+\.\d+),(-?\d+\.\d+)")
+
+
+def scrape_heyma(fetch: Fetch) -> list[RawLocation]:
+    """Heyma.
+
+    Each store is a link to Google directions whose text is the full
+    address and whose href carries the coordinates. The heading above it
+    is the street name rather than a place name, so the city is used.
+
+    No announced stores are published.
+    """
+    soup = BeautifulSoup(fetch(HEYMA_URL), "lxml")
+    for tag in soup.find_all(["script", "style"]):
+        tag.decompose()
+
+    rows: list[RawLocation] = []
+    for link in soup.select("a.restaurant-links[href*=maps]"):
+        raw_address = " ".join(link.get_text(" ", strip=True).split())
+        address = split_us_address(raw_address)
+        if address is None:
+            log.warning("heyma: unparsed address %r", raw_address)
+            continue
+        street, city, state, postal = address
+
+        coords = _DADDR_COORDS.search(link["href"])
+        phone_link = link.find_next("a", href=re.compile("^tel:"))
+
+        rows.append(
+            RawLocation(
+                brand="heyma",
+                name=city,
+                street=street,
+                city=city,
+                state=state,
+                postal=postal,
+                status="open",
+                lat=float(coords.group(1)) if coords else None,
+                lon=float(coords.group(2)) if coords else None,
+                phone=phone_link.get_text(strip=True) if phone_link else None,
+                source_url=HEYMA_URL,
+                fragment=raw_address,
+            )
+        )
+
+    return rows

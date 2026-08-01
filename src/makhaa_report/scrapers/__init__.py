@@ -14,6 +14,7 @@ from .multi_page import scrape_haraz
 from .single_page import (
     scrape_arwa,
     scrape_delah,
+    scrape_heyma,
     scrape_matari,
     scrape_moka_and_co,
     scrape_qatra,
@@ -25,6 +26,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "arwa": scrape_arwa,
     "delah": scrape_delah,
     "haraz": scrape_haraz,
+    "heyma": scrape_heyma,
     "matari": scrape_matari,
     "moka_and_co": scrape_moka_and_co,
     "qahwah_house": scrape_qahwah_house,

@@ -147,9 +147,15 @@ BRANDS: tuple[Brand, ...] = (
     Brand(
         slug="heyma",
         display_name="Heyma",
-        locator_url="https://heymacoffeeca.com",
+        locator_url="https://www.heymacoffeeca.com/locations",
         method="scrape",
         band=(1, 4),
+        notes=(
+            "Each store is a Google directions link whose text is the "
+            "address and whose href carries the coordinates. Headings "
+            "are street names, so the city is used as the name. Both "
+            "stores publish the same phone number. No announced stores."
+        ),
     ),
     Brand(
         slug="caffeena",
