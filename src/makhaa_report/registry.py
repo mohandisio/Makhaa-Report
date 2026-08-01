@@ -163,6 +163,13 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://caffeena.com/locations",
         method="scrape",
         band=(1, 8),
+        notes=(
+            "The page is split into \"Now Open Locations\" and \"Coming "
+            "Soon Locations\" sections, so status comes from walking "
+            "back to the nearest section heading. Addresses sit in "
+            "plain paragraphs; no coordinates or phone numbers are "
+            "published."
+        ),
     ),
     Brand(
         slug="mokafe",

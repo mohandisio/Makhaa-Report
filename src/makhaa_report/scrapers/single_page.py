@@ -362,3 +362,69 @@ def scrape_heyma(fetch: Fetch) -> list[RawLocation]:
         )
 
     return rows
+
+
+CAFFEENA_URL = "https://caffeena.com/locations"
+
+_HEADINGS = ["h1", "h2", "h3"]
+
+
+def _caffeena_status(node) -> str:
+    """Which section an address sits under.
+
+    Caffeena splits the page into "Now Open Locations" and "Coming Soon
+    Locations", with a per-store heading under each; walking back to the
+    nearest section heading is what tells the two apart.
+    """
+    heading = node
+    while True:
+        heading = heading.find_previous(_HEADINGS)
+        if heading is None:
+            return "unknown"
+        text = heading.get_text(" ", strip=True).casefold()
+        if "coming soon" in text:
+            return "coming_soon"
+        if "now open" in text:
+            return "open"
+
+
+def scrape_caffeena(fetch: Fetch) -> list[RawLocation]:
+    """Caffeena Coffee House.
+
+    Addresses sit in plain paragraphs under a per-store heading, split
+    across a now-open and a coming-soon section. The site publishes
+    neither coordinates nor phone numbers.
+    """
+    soup = BeautifulSoup(fetch(CAFFEENA_URL), "lxml")
+    for tag in soup.find_all(["script", "style"]):
+        tag.decompose()
+
+    rows: list[RawLocation] = []
+    seen: set[tuple[str, str]] = set()
+
+    for node in soup.find_all(string=_LOOKS_LIKE_ADDRESS):
+        text = " ".join(str(node).split())
+        address = split_us_address(text)
+        if address is None:
+            continue
+        street, city, state, postal = address
+        if (street, city) in seen:
+            continue
+        seen.add((street, city))
+
+        heading = node.parent.find_previous(_HEADINGS)
+        rows.append(
+            RawLocation(
+                brand="caffeena",
+                name=heading.get_text(" ", strip=True) if heading else city,
+                street=street,
+                city=city,
+                state=state,
+                postal=postal,
+                status=_caffeena_status(node.parent),
+                source_url=CAFFEENA_URL,
+                fragment=text,
+            )
+        )
+
+    return rows

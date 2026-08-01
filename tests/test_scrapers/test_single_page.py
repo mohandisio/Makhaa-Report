@@ -7,6 +7,7 @@ and update the expectations here.
 from makhaa_report.registry import get_brand
 from makhaa_report.scrapers.single_page import (
     scrape_arwa,
+    scrape_caffeena,
     scrape_delah,
     scrape_heyma,
     scrape_matari,
@@ -169,3 +170,20 @@ def test_heyma_reads_address_and_coordinates_from_the_map_link(fixture_fetch):
 
     # The tel: links share the same markup and must not become stores.
     assert all(r.street for r in rows)
+
+
+def test_caffeena_reads_status_from_the_section_heading(fixture_fetch):
+    rows = scrape_caffeena(fixture_fetch("caffeena"))
+
+    low, high = get_brand("caffeena").band
+    assert low <= len(rows) <= high
+
+    # One trading store, the rest announced under "Coming Soon Locations".
+    open_rows = [r for r in rows if r.status == "open"]
+    assert len(open_rows) == 1
+    assert open_rows[0].street == "3101 Griffith St"
+    assert sum(r.status == "coming_soon" for r in rows) == 6
+
+    # Both Charlotte stores are listed, one per section.
+    charlotte = [r for r in rows if r.city == "Charlotte"]
+    assert {r.status for r in charlotte} == {"open", "coming_soon"}

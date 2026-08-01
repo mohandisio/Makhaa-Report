@@ -13,6 +13,7 @@ from .json_sites import scrape_qahwah_house, scrape_qamaria, scrape_shibam
 from .multi_page import scrape_haraz
 from .single_page import (
     scrape_arwa,
+    scrape_caffeena,
     scrape_delah,
     scrape_heyma,
     scrape_matari,
@@ -24,6 +25,7 @@ ScrapeFn = Callable[[Fetch], list[RawLocation]]
 
 SCRAPERS: dict[str, ScrapeFn] = {
     "arwa": scrape_arwa,
+    "caffeena": scrape_caffeena,
     "delah": scrape_delah,
     "haraz": scrape_haraz,
     "heyma": scrape_heyma,
