@@ -174,13 +174,16 @@ BRANDS: tuple[Brand, ...] = (
     Brand(
         slug="mokafe",
         display_name="MOKAFÉ",
-        locator_url="https://mymokafe.com",
+        locator_url="https://mymokafe.com/pages/locations",
         method="scrape",
-        band=(1, 12),
+        band=(8, 14),
         notes=(
-            "Prior research disagreed on which storefronts are actually "
-            "MOKAFÉ; verify by hand before publishing, and tighten the band "
-            "once the scraper settles. Distinct company from Moka & Co."
+            "Each store is one bold line combining name and address, "
+            "split on the colon or, failing that, the bullet. The site "
+            "claims ten storefronts; earlier research disputed which of "
+            "them trade as MOKAFÉ, and no scrape settles that — verify "
+            "by hand before publishing. Distinct company from Moka & Co. "
+            "No coordinates published."
         ),
     ),
     Brand(

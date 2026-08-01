@@ -12,6 +12,7 @@ from makhaa_report.scrapers.single_page import (
     scrape_heyma,
     scrape_matari,
     scrape_moka_and_co,
+    scrape_mokafe,
     scrape_qatra,
 )
 
@@ -187,3 +188,24 @@ def test_caffeena_reads_status_from_the_section_heading(fixture_fetch):
     # Both Charlotte stores are listed, one per section.
     charlotte = [r for r in rows if r.city == "Charlotte"]
     assert {r.status for r in charlotte} == {"open", "coming_soon"}
+
+
+def test_mokafe_splits_name_from_address(fixture_fetch):
+    rows = scrape_mokafe(fixture_fetch("mokafe"))
+
+    low, high = get_brand("mokafe").band
+    assert low <= len(rows) <= high
+
+    paterson = next(r for r in rows if r.city == "Paterson")
+    assert paterson.street == "1022 Main St"
+    assert paterson.name == "MOKAFÉ • Paterson, NJ"
+
+    # One store carries no colon, so the bullet separates name from
+    # address instead.
+    melville = next(r for r in rows if r.city == "Melville")
+    assert melville.street == "606 Broadhollow Rd"
+    assert melville.name == "MOKAFÉ Long Island"
+
+    # Two Brooklyn stores share Manhattan Ave; both must survive.
+    manhattan_ave = [r for r in rows if r.street.endswith("Manhattan Ave")]
+    assert len(manhattan_ave) == 2

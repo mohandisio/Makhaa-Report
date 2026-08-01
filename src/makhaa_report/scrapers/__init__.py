@@ -18,6 +18,7 @@ from .single_page import (
     scrape_heyma,
     scrape_matari,
     scrape_moka_and_co,
+    scrape_mokafe,
     scrape_qatra,
 )
 
@@ -31,6 +32,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "heyma": scrape_heyma,
     "matari": scrape_matari,
     "moka_and_co": scrape_moka_and_co,
+    "mokafe": scrape_mokafe,
     "qahwah_house": scrape_qahwah_house,
     "qamaria": scrape_qamaria,
     "qatra": scrape_qatra,
