@@ -88,9 +88,15 @@ BRANDS: tuple[Brand, ...] = (
     Brand(
         slug="arwa",
         display_name="Arwa Yemeni Coffee",
-        locator_url="https://arwacoffee.com/locations",
+        locator_url="https://arwacoffee.com/locations/",
         method="scrape",
         band=(10, 18),
+        notes=(
+            "WordPress; one section per store with an embedded Google "
+            "map the coordinates come from. Contact paragraphs run "
+            "address, email, phone. No announced stores are published "
+            "here."
+        ),
     ),
     Brand(
         slug="matari",
