@@ -77,7 +77,13 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://shibamcoffee.com",
         method="scrape",
         band=(18, 26),
-        notes="WP REST /wp-json/wp/v2/pages?slug=our-locations&_fields=content.",
+        notes=(
+            "WP REST /wp-json/wp/v2/pages?slug=our-locations returns the "
+            "page as rendered HTML. Card headings are regional labels "
+            "rather than cities, so the address is the identity. Stores "
+            "announce themselves in prose (\"Soft opening coming soon\") "
+            "with no dedicated marker. No coordinates published."
+        ),
     ),
     Brand(
         slug="arwa",

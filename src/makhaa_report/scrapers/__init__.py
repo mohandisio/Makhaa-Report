@@ -9,7 +9,7 @@ from typing import Callable
 
 from ..fetch import Fetch
 from ..models import RawLocation
-from .json_sites import scrape_qahwah_house, scrape_qamaria
+from .json_sites import scrape_qahwah_house, scrape_qamaria, scrape_shibam
 from .multi_page import scrape_haraz
 from .single_page import scrape_moka_and_co
 
@@ -20,4 +20,5 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "moka_and_co": scrape_moka_and_co,
     "qahwah_house": scrape_qahwah_house,
     "qamaria": scrape_qamaria,
+    "shibam": scrape_shibam,
 }

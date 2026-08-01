@@ -5,7 +5,11 @@ and update the expectations here.
 """
 
 from makhaa_report.registry import get_brand
-from makhaa_report.scrapers.json_sites import scrape_qahwah_house, scrape_qamaria
+from makhaa_report.scrapers.json_sites import (
+    scrape_qahwah_house,
+    scrape_qamaria,
+    scrape_shibam,
+)
 
 
 def test_qamaria_parses_us_cafes(fixture_fetch):
@@ -72,3 +76,35 @@ def test_qahwah_house_ignores_non_store_blocks(fixture_fetch):
     # The page also carries Organization and BreadcrumbList blocks.
     assert all(r.brand == "qahwah_house" for r in rows)
     assert not any(r.name in ("Qahwah House", "Home", "Locations") for r in rows)
+
+
+def test_shibam_parses_cards_from_rendered_html(fixture_fetch):
+    rows = scrape_shibam(fixture_fetch("shibam"))
+
+    low, high = get_brand("shibam").band
+    assert low <= len(rows) <= high
+
+    dearborn = next(r for r in rows if r.street == "5461 Schaefer Rd")
+    assert dearborn.city == "Dearborn"
+    assert dearborn.state == "MI"
+    assert dearborn.postal == "48126"
+    assert dearborn.phone == "+13136331624"
+    assert dearborn.hours.startswith("Sun – Thu:")
+
+
+def test_shibam_reads_status_from_prose(fixture_fetch):
+    rows = scrape_shibam(fixture_fetch("shibam"))
+
+    # Announced with wording, not a marker: "Soft opening coming soon!!"
+    ann_arbor = next(r for r in rows if r.city == "Ann Arbor")
+    assert ann_arbor.status == "coming_soon"
+    assert sum(r.status == "coming_soon" for r in rows) == 1
+
+
+def test_shibam_trusts_the_address_over_the_heading(fixture_fetch):
+    rows = scrape_shibam(fixture_fetch("shibam"))
+
+    # Headings are regional labels: this one is headed "CLEVELAND, OH".
+    north_olmsted = next(r for r in rows if r.street == "26745 Brookpark Ext")
+    assert north_olmsted.city == "North Olmsted"
+    assert north_olmsted.name == "CLEVELAND, OH"
