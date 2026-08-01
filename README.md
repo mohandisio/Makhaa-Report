@@ -4,8 +4,8 @@ Census of US Yemeni coffee chain locations, scraped weekly from each
 brand's own store locator into SQLite + CSVs, with a self-contained HTML
 report generated from the database.
 
-14 brands tracked: 12 scraped, 2 hand-maintained (Mohka House has no
-website; Sana'a Cafe's locator is provably incomplete). See
+22 brands tracked. All but Mohka House are scraped; it has no website of
+its own, so its stores arrive by manual entry. See
 `src/makhaa_report/registry.py` for the full registry including known
 lookalike exclusions (qatracafe.com ≠ qatracoffee.com, etc.).
 
@@ -37,12 +37,12 @@ Nothing generated is committed.
 
 Honest User-Agent with contact address, one request per second,
 single-threaded, weekly (~40 requests per sweep). If a brand actively
-challenges scraping, move it to a hand-maintained CSV in `data/manual/`
+challenges scraping, move it to manual entry in `data/manual/`
 rather than escalating.
 
 ## Data
 
-Committed — the hand-maintained inputs:
+Committed — the manual-entry inputs:
 
 - `data/manual/<slug>.csv` — brands with no scrapable locator
 - `data/overrides.csv` — hand edits merged after every scrape

@@ -2,7 +2,7 @@
 
 Brand scrapers are grouped by site type (json_sites, single_page,
 multi_page). Brands absent from this dict are reported as "no scraper"
-and skipped; the pipeline still runs on the hand-maintained CSVs.
+and skipped; the pipeline still runs on the manual-entry CSVs.
 """
 
 from typing import Callable

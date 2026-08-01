@@ -98,7 +98,7 @@ def run_scrape(
     for brand in registry.manual_brands():
         if selected(brand.slug):
             count = sum(1 for r in manual_rows if r.brand == brand.slug)
-            result = BrandResult(brand.slug, "ok", count, "hand-maintained")
+            result = BrandResult(brand.slug, "ok", count, "manual entry")
             stats.results.append(result)
             progress.finish_brand(result)
     scraped.extend((r, True) for r in manual_rows)

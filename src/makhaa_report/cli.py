@@ -24,6 +24,18 @@ def main(argv: list[str] | None = None) -> int:
     p_scrape.add_argument("--allow-drift", action="store_true",
                           help="write rows even when a brand's count is outside its band")
 
+    p_manual = sub.add_parser(
+        "manual-entry",
+        help="add a store by hand for a brand with no scrapable locator",
+    )
+    p_manual.add_argument(
+        "fields",
+        nargs="+",
+        metavar="FIELD",
+        help='key=value pairs or one JSON object, e.g. brand=mohka_house '
+             'street="123 Grand Ave" city=Oakland state=CA',
+    )
+
     sub.add_parser("geocode", help="fill missing coordinates via Census batch geocoder")
 
     p_export = sub.add_parser("export", help="mirror database to CSVs")
@@ -50,6 +62,23 @@ def main(argv: list[str] | None = None) -> int:
             )
         # The live table's last frame is the summary; only the tally is left.
         render_scrape_summary(stats, table=False)
+        return 1 if stats.brands_failed else 0
+
+    if args.command == "manual-entry":
+        from .manual import ManualEntryError, append_entry, parse_entry
+        from .pipeline import run_scrape
+
+        try:
+            record = parse_entry(args.fields)
+            path = append_entry(record)
+        except ManualEntryError as exc:
+            console.print(f"[bold red]manual entry rejected:[/] {exc}")
+            return 2
+        console.print(f"[dim]wrote[/] {path}")
+        # Load the brand straight back through the normal path, so the
+        # row is normalized, snapshotted and exported like any other.
+        stats = run_scrape(db.connect(), brands=[record["brand"]])
+        render_scrape_summary(stats)
         return 1 if stats.brands_failed else 0
 
     if args.command == "export":

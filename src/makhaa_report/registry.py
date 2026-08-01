@@ -285,7 +285,7 @@ BRANDS: tuple[Brand, ...] = (
         notes=(
             "No website of its own — only a Yelp listing, which is a "
             "third-party aggregator rather than the brand's own site, "
-            "so it stays hand-maintained in data/manual/mohka_house.csv."
+            "so its stores are added by manual entry into data/manual/mohka_house.csv."
         ),
     ),
     Brand(
