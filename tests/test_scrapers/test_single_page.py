@@ -7,6 +7,7 @@ and update the expectations here.
 from makhaa_report.registry import get_brand
 from makhaa_report.scrapers.single_page import (
     scrape_arwa,
+    scrape_delah,
     scrape_matari,
     scrape_moka_and_co,
 )
@@ -95,3 +96,31 @@ def test_matari_skips_markets_announced_without_an_address(fixture_fetch):
     # "Dallas, TX", "Houston, TX" and "Atlanta, GA" carry no street, so
     # they cannot be identified as stores and are dropped.
     assert not any(r.state in ("TX", "GA") for r in rows)
+
+
+def test_delah_reads_the_icon_list(fixture_fetch):
+    rows = scrape_delah(fixture_fetch("delah"))
+
+    low, high = get_brand("delah").band
+    assert low <= len(rows) <= high
+
+    # Phone, email and social entries share the same markup and must not
+    # become stores.
+    assert all(r.street for r in rows)
+
+    naperville = next(r for r in rows if r.city == "Naperville")
+    assert naperville.street == "1336 Illinois Rte 59"
+    assert naperville.state == "IL"
+
+    # Two San Francisco stores stay distinct.
+    assert sum(r.city == "San Francisco" for r in rows) == 2
+
+
+def test_delah_takes_coordinates_only_from_place_links(fixture_fetch):
+    rows = scrape_delah(fixture_fetch("delah"))
+
+    san_diego = next(r for r in rows if r.city == "San Diego")
+    assert san_diego.lat == 32.7494607
+
+    # The rest link to shortened g.co URLs, which carry no coordinates.
+    assert sum(r.lat is None for r in rows) == 6

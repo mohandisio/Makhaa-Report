@@ -179,3 +179,62 @@ def scrape_matari(fetch: Fetch) -> list[RawLocation]:
         )
 
     return rows
+
+
+DELAH_URL = "https://delahcoffee.com/locations/"
+
+# Store links point at Google, either a shortened g.co link or a full
+# place URL; only the latter carries coordinates.
+_PLACE_COORDS = re.compile(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)")
+
+
+def scrape_delah(fetch: Fetch) -> list[RawLocation]:
+    """Delah Coffee.
+
+    Built with Elementor, so the per-store blocks carry no usable classes
+    and two of them are rendered inside embedded Google widgets. The icon
+    list is the one consistent listing: an entry per store reading
+    "City: address", alongside phone, email and social entries that carry
+    no address and are skipped.
+
+    The page announces no stores, so every row is recorded as open.
+    """
+    soup = BeautifulSoup(fetch(DELAH_URL), "lxml")
+    for tag in soup.find_all(["script", "style"]):
+        tag.decompose()
+
+    rows: list[RawLocation] = []
+    seen: set[tuple[str, str]] = set()
+
+    for entry in soup.select("span.elementor-icon-list-text"):
+        text = " ".join(entry.get_text(" ", strip=True).split())
+        label, _, remainder = text.partition(":")
+        address = split_us_address(remainder.strip())
+        if address is None:
+            continue  # phone, email or a social link
+        street, city, state, postal = address
+        if (street, city) in seen:
+            continue
+        seen.add((street, city))
+
+        link = entry.find_parent("a") or entry.find_previous("a")
+        href = link.get("href") if link else None
+        coords = _PLACE_COORDS.search(href) if href else None
+
+        rows.append(
+            RawLocation(
+                brand="delah",
+                name=label.strip() or city,
+                street=street,
+                city=city,
+                state=state,
+                postal=postal,
+                status="open",
+                lat=float(coords.group(1)) if coords else None,
+                lon=float(coords.group(2)) if coords else None,
+                source_url=href or DELAH_URL,
+                fragment=text,
+            )
+        )
+
+    return rows

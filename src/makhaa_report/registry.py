@@ -118,9 +118,17 @@ BRANDS: tuple[Brand, ...] = (
     Brand(
         slug="delah",
         display_name="Delah Coffee",
-        locator_url="https://delahcoffee.com/pages/locations",
+        locator_url="https://delahcoffee.com/locations/",
         method="scrape",
         band=(5, 10),
+        notes=(
+            "Elementor; per-store blocks carry no usable classes and "
+            "two render inside embedded Google widgets, so the icon "
+            "list is read instead — one \"City: address\" entry per "
+            "store among phone, email and social entries. Only the one "
+            "store linked to a full Maps place URL has coordinates. No "
+            "announced stores are published here."
+        ),
     ),
     Brand(
         slug="qatra",
