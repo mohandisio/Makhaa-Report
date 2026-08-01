@@ -133,10 +133,16 @@ BRANDS: tuple[Brand, ...] = (
     Brand(
         slug="qatra",
         display_name="Qatra Coffee",
-        locator_url="https://qatracoffee.com/locations",
+        locator_url="https://qatracoffee.com/",
         method="scrape",
         band=(2, 6),
-        notes="qatracoffee.com is the Yemeni brand — NOT qatracafe.com (see exclusions).",
+        notes=(
+            "qatracoffee.com is the Yemeni brand — NOT qatracafe.com "
+            "(see exclusions). There is no locations page; /locations "
+            "404s, so addresses are read off the home page, where each "
+            "appears several times and is deduplicated. Only the store "
+            "in the schema block has coordinates. No announced stores."
+        ),
     ),
     Brand(
         slug="heyma",

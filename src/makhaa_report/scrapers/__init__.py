@@ -16,6 +16,7 @@ from .single_page import (
     scrape_delah,
     scrape_matari,
     scrape_moka_and_co,
+    scrape_qatra,
 )
 
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
@@ -28,5 +29,6 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "moka_and_co": scrape_moka_and_co,
     "qahwah_house": scrape_qahwah_house,
     "qamaria": scrape_qamaria,
+    "qatra": scrape_qatra,
     "shibam": scrape_shibam,
 }
