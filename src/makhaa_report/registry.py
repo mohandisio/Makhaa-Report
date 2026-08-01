@@ -104,7 +104,16 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://mataricoffee.com/locations",
         method="scrape",
         band=(6, 12),
-        notes="US census: exclude the Mississauga ON store.",
+        notes=(
+            "One card per store. The Mississauga store is Canadian and "
+            "falls out of the US address parse without special-casing. "
+            "Three announced markets are published as a bare city and "
+            "state with no street, so Matari's announced presence in TX "
+            "and GA is not captured. The Hicksville store publishes a "
+            "region where the city belongs (\"Hicksville, Long Isand\"), "
+            "so its city reads wrong until corrected in overrides.csv. "
+            "No coordinates published."
+        ),
     ),
     Brand(
         slug="delah",

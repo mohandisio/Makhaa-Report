@@ -122,3 +122,60 @@ def scrape_arwa(fetch: Fetch) -> list[RawLocation]:
         )
 
     return rows
+
+
+MATARI_URL = "https://mataricoffee.com/locations"
+
+
+def scrape_matari(fetch: Fetch) -> list[RawLocation]:
+    """Matari Coffee.
+
+    One card per store: a title link carrying the store name and phone,
+    an <address>, and "coming soon" wording for announced stores.
+
+    Two kinds of card produce no row. The Mississauga store is Canadian
+    and falls out of the US address parse on its own. Three announced
+    markets are published as a bare "Dallas, TX" with no street; they are
+    logged and skipped, so Matari's announced presence in Texas and
+    Georgia is not represented here.
+    """
+    soup = BeautifulSoup(fetch(MATARI_URL), "lxml")
+    rows: list[RawLocation] = []
+
+    for card in soup.select("div.service__item-3"):
+        block = card.find("address")
+        if block is None:
+            continue
+        raw_address = " ".join(block.get_text(" ", strip=True).split())
+        address = split_us_address(raw_address)
+        if address is None:
+            log.warning("matari: skipping unparsed address %r", raw_address)
+            continue
+        street, city, state, postal = address
+
+        link = card.select_one("a.woocomerce__feature-producttitle")
+        heading = card.select_one("span.primary-color")
+        phone = None
+        if link is not None:
+            phone = next(
+                (t for t in link.get_text(" ", strip=True).split() if t.startswith("+")),
+                None,
+            )
+        text = " ".join(card.get_text(" ", strip=True).split())
+
+        rows.append(
+            RawLocation(
+                brand="matari",
+                name=heading.get_text(strip=True) if heading else city,
+                street=street,
+                city=city,
+                state=state,
+                postal=postal,
+                status="coming_soon" if "coming soon" in text.casefold() else "open",
+                phone=phone,
+                source_url=link["href"] if link and link.get("href") else MATARI_URL,
+                fragment=text,
+            )
+        )
+
+    return rows
