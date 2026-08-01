@@ -1,0 +1,27 @@
+[project]
+name = "makhaa-report"
+version = "0.1.0"
+description = "Census of US Yemeni coffee chain locations scraped from brand store locators"
+readme = "README.md"
+authors = [
+    { name = "mohandisio", email = "mail@mohandis.io" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "lxml>=6.1.1",
+    "pandas>=3.0.5",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+makhaa-report = "makhaa_report.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

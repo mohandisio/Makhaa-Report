@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Runtime data (exports/, manual/, overrides.csv ARE committed)
+data/makhaa.sqlite
+data/geo/
+data/reports/
+
+# Claude
+.claude/
