@@ -11,6 +11,7 @@ note). patch/drop need uid; add computes one.
 
 import csv
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -18,6 +19,8 @@ from typing import Literal
 from . import config
 from .models import Location, RawLocation
 from .normalize import to_location
+
+log = logging.getLogger("makhaa")
 
 MANUAL_FIELDS = (
     "name", "street", "city", "state", "postal", "status", "status_note",
@@ -143,8 +146,9 @@ def parse_entry(tokens: list[str]) -> dict[str, str]:
 def append_entry(record: dict[str, str], manual_dir: Path | None = None) -> Path:
     """Write one manual-entry row to its brand's CSV, creating it if needed.
 
-    The CSV is the durable copy: the database is rebuildable, but these
-    rows exist nowhere else, so they are committed to git.
+    The CSV is the durable copy. Scraped rows can be rebuilt by running
+    again; these cannot, and nothing under data/ is in git, so the
+    directory needs its own backup.
     """
     manual_dir = manual_dir or config.MANUAL_DIR
     unknown = set(record) - {"brand", *MANUAL_FIELDS}
@@ -178,3 +182,82 @@ def append_entry(record: dict[str, str], manual_dir: Path | None = None) -> Path
             writer.writeheader()
         writer.writerow({k: record.get(k, "") for k in MANUAL_FIELDS})
     return path
+
+
+_MERGEABLE = (
+    "name", "street", "city", "state", "postal", "status", "status_note",
+    "lat", "lon", "phone", "hours", "source_url",
+)
+
+
+def _digits(value: str | None) -> str:
+    return "".join(c for c in (value or "") if c.isdigit())
+
+
+def _find_target(
+    entry: Location, raw: RawLocation, locations: dict[str, Location]
+) -> str | None:
+    """The scraped row a manual entry is correcting, if there is one.
+
+    The uid is a hash of the address, so an entry that fixes a wrong
+    address cannot match on it — that is the whole point of the entry.
+    Name and phone are what survive a corrected address, so they are
+    tried next, and only when they identify exactly one row.
+    """
+    if entry.uid in locations:
+        return entry.uid
+
+    candidates: list[str] = []
+    if raw.name.strip():
+        wanted = raw.name.casefold().strip()
+        candidates = [
+            uid for uid, loc in locations.items()
+            if loc.brand == raw.brand and loc.name.casefold().strip() == wanted
+        ]
+    if len(candidates) != 1 and _digits(raw.phone):
+        wanted_phone = _digits(raw.phone)
+        candidates = [
+            uid for uid, loc in locations.items()
+            if loc.brand == raw.brand and _digits(loc.phone) == wanted_phone
+        ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def apply_manual_entries(
+    locations: dict[str, Location], manual_rows: list[RawLocation], now_iso: str
+) -> None:
+    """Merge manual entries over the scraped rows, in place.
+
+    An entry supplies corrections, not a replacement row: whatever it
+    states wins, and every field it leaves blank keeps the scraped value.
+    That way fixing a mistyped street does not discard the coordinates,
+    hours or phone the scraper collected for the same store.
+    """
+    for raw in manual_rows:
+        entry = to_location(raw, now_iso, is_manual=True)
+        target_uid = _find_target(entry, raw, locations)
+
+        if target_uid is None:
+            locations[entry.uid] = entry
+            continue
+
+        merged = locations.pop(target_uid)
+        supplied = {
+            field: getattr(raw, field)
+            for field in _MERGEABLE
+            if (getattr(raw, field) or "") != ""
+        }
+        for field, value in supplied.items():
+            setattr(merged, field, getattr(entry, field))
+        if "lat" in supplied or "lon" in supplied:
+            merged.geocode_source = "manual"
+        merged.is_manual = True
+        merged.last_seen = now_iso
+        # The address may have changed, which re-keys the row.
+        merged.uid = entry.uid
+        if target_uid != entry.uid:
+            log.info(
+                "manual entry corrects %s -> %s (%s)",
+                target_uid, entry.uid, ", ".join(sorted(supplied)),
+            )
+        locations[entry.uid] = merged

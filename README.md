@@ -42,18 +42,28 @@ rather than escalating.
 
 ## Data
 
-Committed — the manual-entry inputs:
+Nothing under `data/` is committed. Back the directory up — git will not
+do it for you.
 
-- `data/manual/<slug>.csv` — brands with no scrapable locator
-- `data/overrides.csv` — hand edits merged after every scrape
+- `data/makhaa.sqlite` — the database. Re-scraping rebuilds the scraped
+  rows, but the append-only `snapshots` table is the run history and
+  cannot be backfilled.
+- `data/manual/<slug>.csv` — manual entries, written by `manual-entry`.
+  The source of truth for the rows they cover, and unrecoverable if lost.
+- `data/overrides.csv` — hand corrections, applied last.
+- `data/exports/` — CSV mirror, rewritten every run.
+- `data/geo/`, `data/reports/` — caches and report output.
 
-Gitignored — everything the pipeline generates:
+## How a row is decided
 
-- `data/makhaa.sqlite` — the database. Rebuildable by re-scraping, except
-  the append-only `snapshots` table, which is the run history and cannot
-  be backfilled. Back it up rather than relying on git.
-- `data/exports/` — CSV mirror of the database, rewritten every run
-- `data/geo/`, `data/reports/` — caches and report output
+1. Scrapers run; two scraped rows sharing a uid means something is wrong,
+   so the first wins and the run says so.
+2. Manual entries land on top. A manual row for an address a scraper also
+   found **replaces** it — somebody checked that one by hand.
+3. `overrides.csv` applies last, so a correction beats everything.
+
+The uid is a hash of brand plus normalized address, which is what lets a
+manual entry line up with the scraped row it corrects.
 
 ## Development
 

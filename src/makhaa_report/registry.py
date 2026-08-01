@@ -180,10 +180,10 @@ BRANDS: tuple[Brand, ...] = (
         notes=(
             "Each store is one bold line combining name and address, "
             "split on the colon or, failing that, the bullet. The site "
-            "claims ten storefronts; earlier research disputed which of "
-            "them trade as MOKAFÉ, and no scrape settles that — verify "
-            "by hand before publishing. Distinct company from Moka & Co. "
-            "No coordinates published."
+            "claims ten storefronts, including several branded MOKAFÉ "
+            "to Go; those count as stores, settling the earlier dispute "
+            "over the total. Distinct company from Moka & Co. No "
+            "coordinates published."
         ),
     ),
     Brand(
@@ -307,7 +307,8 @@ BRANDS: tuple[Brand, ...] = (
             "dependency. Treat the total as a floor, not a count: the "
             "locator omits stores the press confirms are trading, and it "
             "publishes Sacramento under the Oakland Broadway address, so "
-            "that row is dropped. Corrections go in overrides.csv."
+            "that row is dropped and re-added from overrides.csv with "
+            "the real address."
         ),
     ),
 )

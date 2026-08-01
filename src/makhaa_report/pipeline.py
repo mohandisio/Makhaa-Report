@@ -93,7 +93,8 @@ def run_scrape(
         stats.results.append(result)
         progress.finish_brand(result)
 
-    # 4. Manual CSVs — ground truth, no drift check.
+    # 4. Manual entries — no drift check; these are the source of truth
+    # for the rows they cover.
     manual_rows = [r for r in manual.load_manual_brands() if selected(r.brand)]
     for brand in registry.manual_brands():
         if selected(brand.slug):
@@ -101,12 +102,12 @@ def run_scrape(
             result = BrandResult(brand.slug, "ok", count, "manual entry")
             stats.results.append(result)
             progress.finish_brand(result)
-    scraped.extend((r, True) for r in manual_rows)
 
-    # 5. Normalize + uid; within-brand collision keeps first row, loudly.
+    # 5. Normalize + uid. Two scraped rows sharing a uid means the
+    # normalizer or the locator is wrong, so the first wins and says so.
     locations: dict[str, Location] = {}
-    for raw, is_manual in scraped:
-        loc = to_location(raw, now, is_manual=is_manual)
+    for raw, _ in scraped:
+        loc = to_location(raw, now)
         if loc.uid in locations:
             log.warning(
                 "uid collision: %s '%s' collides with '%s' — keeping first. "
@@ -117,16 +118,20 @@ def run_scrape(
             continue
         locations[loc.uid] = loc
 
-    # 6. Overrides — merged last so manual edits win.
+    # 6. Manual entries land on top as corrections: what they state wins,
+    # what they leave blank keeps whatever the scraper found.
+    manual.apply_manual_entries(locations, manual_rows, now)
+
+    # 7. Overrides last, so a hand correction beats everything.
     manual.apply_overrides(locations, now)
 
-    # 7. Write phase — one transaction: snapshot then upsert per row.
+    # 8. Write phase — one transaction: snapshot then upsert per row.
     with conn:
         for loc in locations.values():
             db.insert_snapshot(conn, stats.run_id, loc.uid, now, loc.status, loc.fragment)
             db.upsert_location(conn, loc)
 
-    # 8. Close run + mirror to CSV.
+    # 9. Close run + mirror to CSV.
     stats.total_rows = len(locations)
     db.finish_run(conn, stats, utcnow_iso())
     export.export_all(conn)
