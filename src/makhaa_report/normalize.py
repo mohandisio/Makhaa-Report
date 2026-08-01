@@ -29,6 +29,8 @@ _STATES = {
     "district of columbia": "DC", "washington dc": "DC", "d.c.": "DC",
 }
 _STATE_CODES = set(_STATES.values())
+#: Spelled-out state names, for callers matching them in slugs or prose.
+US_STATE_NAMES = frozenset(_STATES)
 
 # Canonical short forms for the street tokens locators actually vary on.
 _STREET_ABBREV = {
@@ -162,14 +164,22 @@ def split_us_address(raw: str) -> tuple[str, str, str, str] | None:
     street and city can't be told apart, which is worth losing a row over
     rather than guessing at the uid.
     """
-    cleaned = _COUNTRY_SUFFIX.sub("", " ".join(raw.split()))
+    cleaned = " ".join(raw.split())
+    # A pipe never appears inside an address; sites use it to prefix a
+    # label ("| Buffalo, NY | 1185 Sweet Home Rd, ..."), so the address
+    # is whatever follows the last one.
+    if "|" in cleaned:
+        cleaned = cleaned.rpartition("|")[2]
+    # Bullets and middots stand in for the comma between street and city.
+    cleaned = re.sub(r"\s*[·•]\s*", ", ", cleaned)
+    cleaned = _COUNTRY_SUFFIX.sub("", cleaned.strip(" ,"))
     match = _US_TAIL.match(cleaned)
     if match is None:
         return None
     parts = _split_street_city(match["head"])
     if parts is None:
         return None
-    street, city = parts
+    street, city = (part.strip(" ,") for part in parts)
     if not street or not city:
         return None
     if len(city) == 2 and city.isupper():
