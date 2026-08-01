@@ -105,7 +105,16 @@ def _split_street_city(head: str) -> tuple[str, str] | None:
     """Separate street from city in the part preceding the state."""
     if "," in head:
         street, _, city = head.rpartition(",")
-        return street.strip(), city.strip()
+        street, city = street.strip(), city.strip()
+        # "1300 Main Street, Unit T Lombard" puts the unit on the city's
+        # side of the comma; move it back so the city is just the city.
+        tokens = city.split()
+        while len(tokens) > 1 and tokens[0].strip(".#").casefold() in _UNIT_MARKERS:
+            moved, tokens = tokens[0], tokens[1:]
+            if len(tokens) > 1 and _UNIT_ID.match(tokens[0]):
+                moved, tokens = f"{moved} {tokens[0]}", tokens[1:]
+            street = f"{street} {moved}".strip()
+        return street, " ".join(tokens)
 
     # No comma: cut after the last street-type token, then step past any
     # directional or unit designator trailing it, so "Ave NE Seattle" and
