@@ -30,8 +30,8 @@ Exit codes: 0 ok, 1 any brand failed or drifted, 2 usage error.
 3. Removals and closures are recorded by hand in `data/overrides.csv`
    (`patch`/`add`/`drop`; manual edits always win). A scraper can observe
    absence, not closure.
-4. Commit the refreshed `data/exports/*.csv` — that's the git-diffable
-   history.
+History lives in the database's append-only `snapshots` table, not in git.
+Nothing generated is committed.
 
 ## Crawl posture
 
@@ -42,12 +42,18 @@ rather than escalating.
 
 ## Data
 
-- `data/makhaa.sqlite` — the database (gitignored; rebuildable except
-  `snapshots`, which is append-only history)
-- `data/manual/<slug>.csv` — hand-maintained brands, committed
-- `data/overrides.csv` — hand edits merged after every scrape, committed
-- `data/exports/` — CSV mirror of the DB, regenerated every run, committed
-- `data/geo/`, `data/reports/` — caches and outputs, gitignored
+Committed — the hand-maintained inputs:
+
+- `data/manual/<slug>.csv` — brands with no scrapable locator
+- `data/overrides.csv` — hand edits merged after every scrape
+
+Gitignored — everything the pipeline generates:
+
+- `data/makhaa.sqlite` — the database. Rebuildable by re-scraping, except
+  the append-only `snapshots` table, which is the run history and cannot
+  be backfilled. Back it up rather than relying on git.
+- `data/exports/` — CSV mirror of the database, rewritten every run
+- `data/geo/`, `data/reports/` — caches and report output
 
 ## Development
 

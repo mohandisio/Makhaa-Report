@@ -9,8 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-# Runtime data (exports/, manual/, overrides.csv ARE committed)
+# Generated data. manual/ and overrides.csv are hand-maintained and committed.
 data/makhaa.sqlite
+data/exports/
 data/geo/
 data/reports/
 
