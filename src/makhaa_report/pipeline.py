@@ -12,26 +12,49 @@ from .scrapers import SCRAPERS
 log = logging.getLogger("makhaa")
 
 
+class NullProgress:
+    """Default reporter: the pipeline runs the same with nobody watching."""
+
+    def start(self, run_id: int, slugs: list[str]) -> None: ...
+    def start_brand(self, slug: str) -> None: ...
+    def note_request(self, slug: str) -> None: ...
+    def finish_brand(self, result: BrandResult) -> None: ...
+
+
 def run_scrape(
     conn: sqlite3.Connection,
     *,
     brands: list[str] | None = None,
     fetch: Fetch | None = None,
     allow_drift: bool = False,
+    progress: NullProgress | None = None,
 ) -> RunStats:
     if fetch is None:
         from .fetch import make_fetcher
 
         fetch = make_fetcher()
+    progress = progress or NullProgress()
 
     def selected(slug: str) -> bool:
         return not brands or slug in brands
+
+    def watched(slug: str) -> Fetch:
+        """Report each request so a slow multi-page brand shows movement."""
+
+        def wrapped(url: str) -> str:
+            progress.note_request(slug)
+            return fetch(url)
+
+        return wrapped
 
     # 1. Open run. finished_at stays NULL until the very end, so a crash
     # is visible as a NULL in the runs table.
     db.sync_registry(conn, registry.BRANDS, registry.EXCLUSIONS)
     now = utcnow_iso()
     stats = RunStats(run_id=db.start_run(conn, now))
+    progress.start(
+        stats.run_id, [b.slug for b in registry.BRANDS if selected(b.slug)]
+    )
 
     # 2+3. Scrape each brand; quarantine on error or band drift. A
     # quarantined brand's existing rows are left untouched — stale
@@ -41,13 +64,18 @@ def run_scrape(
         if not selected(brand.slug):
             continue
         if brand.slug not in SCRAPERS:
-            stats.results.append(BrandResult(brand.slug, "no_scraper"))
+            result = BrandResult(brand.slug, "no_scraper")
+            stats.results.append(result)
+            progress.finish_brand(result)
             continue
+        progress.start_brand(brand.slug)
         try:
-            rows = SCRAPERS[brand.slug](fetch)
+            rows = SCRAPERS[brand.slug](watched(brand.slug))
         except Exception as exc:
             log.exception("%s: scrape failed — brand quarantined this run", brand.slug)
-            stats.results.append(BrandResult(brand.slug, "error", note=str(exc)))
+            result = BrandResult(brand.slug, "error", note=str(exc))
+            stats.results.append(result)
+            progress.finish_brand(result)
             continue
         low, high = brand.band
         if not low <= len(rows) <= high and not allow_drift:
@@ -56,19 +84,23 @@ def run_scrape(
                 "no rows written. Re-run with --allow-drift to override.",
                 brand.slug, len(rows), low, high,
             )
-            stats.results.append(
-                BrandResult(brand.slug, "drift", len(rows), "quarantined, no rows written")
-            )
+            result = BrandResult(brand.slug, "drift", len(rows), "quarantined, no rows written")
+            stats.results.append(result)
+            progress.finish_brand(result)
             continue
         scraped.extend((r, False) for r in rows)
-        stats.results.append(BrandResult(brand.slug, "ok", len(rows)))
+        result = BrandResult(brand.slug, "ok", len(rows))
+        stats.results.append(result)
+        progress.finish_brand(result)
 
     # 4. Manual CSVs — ground truth, no drift check.
     manual_rows = [r for r in manual.load_manual_brands() if selected(r.brand)]
     for brand in registry.manual_brands():
         if selected(brand.slug):
             count = sum(1 for r in manual_rows if r.brand == brand.slug)
-            stats.results.append(BrandResult(brand.slug, "ok", count, "hand-maintained"))
+            result = BrandResult(brand.slug, "ok", count, "hand-maintained")
+            stats.results.append(result)
+            progress.finish_brand(result)
     scraped.extend((r, True) for r in manual_rows)
 
     # 5. Normalize + uid; within-brand collision keeps first row, loudly.

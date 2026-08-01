@@ -7,7 +7,7 @@ import argparse
 import sys
 
 from . import db
-from .console import console, render_scrape_summary, setup_logging
+from .console import ScrapeProgress, console, render_scrape_summary, setup_logging
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,8 +41,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "scrape":
         from .pipeline import run_scrape
 
-        stats = run_scrape(db.connect(), brands=args.brands, allow_drift=args.allow_drift)
-        render_scrape_summary(stats)
+        with ScrapeProgress() as progress:
+            stats = run_scrape(
+                db.connect(),
+                brands=args.brands,
+                allow_drift=args.allow_drift,
+                progress=progress,
+            )
+        # The live table's last frame is the summary; only the tally is left.
+        render_scrape_summary(stats, table=False)
         return 1 if stats.brands_failed else 0
 
     if args.command == "export":
