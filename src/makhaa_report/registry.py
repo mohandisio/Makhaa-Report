@@ -187,13 +187,106 @@ BRANDS: tuple[Brand, ...] = (
         ),
     ),
     Brand(
+        slug="port",
+        display_name="Port Coffee Co.",
+        locator_url="https://portcoffeeco.com",
+        method="scrape",
+        band=(1, 15),
+        hq="Louisiana",
+        notes=(
+            "Framer site rendered entirely client-side — the HTML holds no "
+            "links or text, so there is nothing to parse without a browser. "
+            "Band is provisional until a first scrape sets it."
+        ),
+    ),
+    Brand(
+        slug="qishr",
+        display_name="Qishr Coffee House",
+        locator_url="https://qishrcoffeehouse.co",
+        method="scrape",
+        band=(1, 12),
+        notes=(
+            "Framer site rendered entirely client-side — the HTML holds no "
+            "links or text, so there is nothing to parse without a browser. "
+            "Band is provisional until a first scrape sets it."
+        ),
+    ),
+    Brand(
+        slug="house_of_mokhah",
+        display_name="House of Mokhah",
+        locator_url="https://www.houseofmokhaycc.com/cafes",
+        method="scrape",
+        band=(1, 10),
+        notes="Squarespace with schema blocks. Band provisional until a first scrape sets it.",
+    ),
+    Brand(
+        slug="biladi",
+        display_name="Biladi Coffee House",
+        locator_url="https://biladicoffeehouse.com",
+        method="scrape",
+        band=(1, 10),
+        franchises=True,
+        notes=(
+            "Elementor; addresses carry pipe-separated prefixes that must "
+            "be stripped. Band provisional until a first scrape sets it."
+        ),
+    ),
+    Brand(
+        slug="original_mocha",
+        display_name="Original Mocha",
+        locator_url="https://originalmocha.com",
+        method="scrape",
+        band=(1, 10),
+        franchises=True,
+        notes=(
+            "WordPress with a page per store (/murphy-texas/); the home "
+            "page carries no address. Band provisional until a first "
+            "scrape sets it."
+        ),
+    ),
+    Brand(
+        slug="queen",
+        display_name="Queen Yemeni Coffee",
+        locator_url="https://queencoffeehouse.com",
+        method="scrape",
+        band=(1, 8),
+        notes=(
+            "Elementor; addresses use a middot between street and city. "
+            "Band provisional until a first scrape sets it."
+        ),
+    ),
+    Brand(
+        slug="socotra",
+        display_name="Socotra Coffee House",
+        locator_url="https://socotracoffeehouse.framer.website",
+        method="scrape",
+        band=(1, 6),
+        notes="Framer, but server-rendered. Band provisional until a first scrape sets it.",
+    ),
+    Brand(
+        slug="mochabox",
+        display_name="MochaBox Coffee",
+        locator_url="https://mochaboxcoffee.com",
+        method="scrape",
+        band=(1, 6),
+        notes=(
+            "Wix; publishes its ZIP as a six-digit typo, so the postcode "
+            "is dropped rather than guessed. Band provisional until a "
+            "first scrape sets it."
+        ),
+    ),
+    Brand(
         slug="mohka_house",
         display_name="Mohka House",
         locator_url="",
         method="manual",
         band=(0, 5),
         hq="Oakland, CA",
-        notes="No website; hand-maintained CSV.",
+        notes=(
+            "No website of its own — only a Yelp listing, which is a "
+            "third-party aggregator rather than the brand's own site, "
+            "so it stays hand-maintained in data/manual/mohka_house.csv."
+        ),
     ),
     Brand(
         slug="sanaa_cafe",
