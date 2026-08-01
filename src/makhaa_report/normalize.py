@@ -99,6 +99,9 @@ _UNIT_MARKERS = {
 _UNIT_ID = re.compile(r"^#?[\w-]{1,8}$")
 # Numbered routes stand in for a street type: "1529 US-14 W Rochester".
 _HIGHWAY = re.compile(r"^(us|sr|fm|rt|rte|route|hwy|highway|county|cr|m)[-\s]?\d+[a-z]?$", re.I)
+# The same thing written as two tokens: "1336 Illinois Rte 59 Naperville".
+_ROUTE_WORDS = {"rt", "rte", "route", "hwy", "highway", "us", "sr", "fm", "cr", "county"}
+_ROUTE_NUMBER = re.compile(r"^\d+[a-z]?$", re.I)
 
 
 def _split_street_city(head: str) -> tuple[str, str] | None:
@@ -122,8 +125,15 @@ def _split_street_city(head: str) -> tuple[str, str] | None:
     tokens = head.split()
     cut = None
     for i, token in enumerate(tokens):
-        if token.strip(".").casefold() in _STREET_TYPES or _HIGHWAY.match(token):
+        word = token.strip(".").casefold()
+        if word in _STREET_TYPES or _HIGHWAY.match(token):
             cut = i + 1
+        elif (
+            word in _ROUTE_WORDS
+            and i + 1 < len(tokens)
+            and _ROUTE_NUMBER.match(tokens[i + 1])
+        ):
+            cut = i + 2
     if cut is None or cut >= len(tokens):
         return None
     if tokens[cut].strip(".").casefold() in _DIRECTIONALS and cut + 1 < len(tokens):
