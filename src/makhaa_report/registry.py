@@ -191,12 +191,14 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Port Coffee Co.",
         locator_url="https://portcoffeeco.com",
         method="scrape",
-        band=(1, 15),
+        band=(4, 12),
         hq="Louisiana",
         notes=(
-            "Framer site rendered entirely client-side — the HTML holds no "
-            "links or text, so there is nothing to parse without a browser. "
-            "Band is provisional until a first scrape sets it."
+            "Single-page app: the shell HTML is empty, but the store "
+            "records live in the JS bundle it loads, with a status "
+            "field and Maps place links carrying coordinates. Fragile "
+            "by nature — a rebuild that changes how the data is "
+            "written breaks the parse, and the band is what catches it."
         ),
     ),
     Brand(
@@ -204,11 +206,12 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Qishr Coffee House",
         locator_url="https://qishrcoffeehouse.co",
         method="scrape",
-        band=(1, 12),
+        band=(1, 5),
         notes=(
-            "Framer site rendered entirely client-side — the HTML holds no "
-            "links or text, so there is nothing to parse without a browser. "
-            "Band is provisional until a first scrape sets it."
+            "Single-page app with no store list — the one cafe's "
+            "address is inlined in the footer markup, so it arrives as "
+            "two adjacent string literals in the JS bundle. Fragile by "
+            "nature; the band is what catches a rebuild."
         ),
     ),
     Brand(
