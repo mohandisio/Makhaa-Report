@@ -4,14 +4,14 @@ Exit codes: 0 ok; 1 any brand failed or drifted; 2 usage error (argparse).
 """
 
 import argparse
-import logging
 import sys
 
 from . import db
+from .console import console, render_scrape_summary, setup_logging
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    setup_logging()
     parser = argparse.ArgumentParser(
         prog="makhaa-report",
         description="Census of US Yemeni coffee chain locations.",
@@ -42,12 +42,7 @@ def main(argv: list[str] | None = None) -> int:
         from .pipeline import run_scrape
 
         stats = run_scrape(db.connect(), brands=args.brands, allow_drift=args.allow_drift)
-        print(
-            f"run {stats.run_id}: {stats.total_rows} rows, "
-            f"{len(stats.brands_succeeded)} brands ok, "
-            f"{len(stats.brands_failed)} failed"
-            + (f" ({', '.join(stats.brands_failed)})" if stats.brands_failed else "")
-        )
+        render_scrape_summary(stats)
         return 1 if stats.brands_failed else 0
 
     if args.command == "export":
@@ -56,19 +51,17 @@ def main(argv: list[str] | None = None) -> int:
         from .export import export_all
 
         for path in export_all(db.connect(), Path(args.out) if args.out else None):
-            print(path)
+            console.print(f"[dim]wrote[/] {path}")
         return 0
 
-    if args.command == "geocode":
-        print("geocode: not implemented yet", file=sys.stderr)
-        return 1
-
-    if args.command == "report":
-        print("report: not implemented yet", file=sys.stderr)
-        return 1
-
-    # args.command == "diff" (argparse guarantees a valid subcommand)
-    print("diff: not implemented yet", file=sys.stderr)
+    not_implemented = {
+        "geocode": "fill missing coordinates",
+        "report": "generate the HTML report",
+        "diff": "compare two runs",
+    }
+    console.print(
+        f"[yellow]{args.command}[/] ({not_implemented[args.command]}) is not implemented yet"
+    )
     return 1
 
 

@@ -147,6 +147,13 @@ EXCLUSIONS: tuple[Exclusion, ...] = (
 )
 
 
+def get_brand(slug: str) -> Brand:
+    for brand in BRANDS:
+        if brand.slug == slug:
+            return brand
+    raise KeyError(f"unknown brand slug: {slug}")
+
+
 def scraped_brands() -> tuple[Brand, ...]:
     return tuple(b for b in BRANDS if b.method == "scrape")
 

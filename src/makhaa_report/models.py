@@ -83,9 +83,33 @@ class Exclusion:
     related_brand: str | None = None
 
 
+BrandOutcome = Literal["ok", "drift", "error", "no_scraper"]
+
+
+@dataclass(frozen=True)
+class BrandResult:
+    """What happened to one brand during a run."""
+
+    slug: str
+    outcome: BrandOutcome
+    rows: int = 0
+    note: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.outcome == "ok"
+
+
 @dataclass
 class RunStats:
     run_id: int
-    brands_succeeded: list[str] = field(default_factory=list)
-    brands_failed: list[str] = field(default_factory=list)
+    results: list[BrandResult] = field(default_factory=list)
     total_rows: int = 0
+
+    @property
+    def brands_succeeded(self) -> list[str]:
+        return [r.slug for r in self.results if r.ok]
+
+    @property
+    def brands_failed(self) -> list[str]:
+        return [r.slug for r in self.results if r.outcome in ("drift", "error")]

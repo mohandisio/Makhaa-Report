@@ -5,17 +5,11 @@ import sqlite3
 
 from . import db, export, manual, registry
 from .fetch import Fetch
-from .models import Location, RawLocation, RunStats, utcnow_iso
+from .models import BrandResult, Location, RawLocation, RunStats, utcnow_iso
 from .normalize import to_location
 from .scrapers import SCRAPERS
 
 log = logging.getLogger("makhaa")
-
-
-class DriftError(Exception):
-    def __init__(self, brand: str, count: int, band: tuple[int, int]):
-        super().__init__(f"{brand}: scraped {count} rows, expected {band[0]}-{band[1]}")
-        self.brand, self.count, self.band = brand, count, band
 
 
 def run_scrape(
@@ -46,14 +40,14 @@ def run_scrape(
     for brand in registry.scraped_brands():
         if not selected(brand.slug):
             continue
+        if brand.slug not in SCRAPERS:
+            stats.results.append(BrandResult(brand.slug, "no_scraper"))
+            continue
         try:
             rows = SCRAPERS[brand.slug](fetch)
-        except KeyError:
-            log.warning("%s: no scraper registered yet, skipping", brand.slug)
-            continue
-        except Exception:
+        except Exception as exc:
             log.exception("%s: scrape failed — brand quarantined this run", brand.slug)
-            stats.brands_failed.append(brand.slug)
+            stats.results.append(BrandResult(brand.slug, "error", note=str(exc)))
             continue
         low, high = brand.band
         if not low <= len(rows) <= high and not allow_drift:
@@ -62,17 +56,20 @@ def run_scrape(
                 "no rows written. Re-run with --allow-drift to override.",
                 brand.slug, len(rows), low, high,
             )
-            stats.brands_failed.append(brand.slug)
+            stats.results.append(
+                BrandResult(brand.slug, "drift", len(rows), "quarantined, no rows written")
+            )
             continue
         scraped.extend((r, False) for r in rows)
-        stats.brands_succeeded.append(brand.slug)
+        stats.results.append(BrandResult(brand.slug, "ok", len(rows)))
 
     # 4. Manual CSVs — ground truth, no drift check.
     manual_rows = [r for r in manual.load_manual_brands() if selected(r.brand)]
+    for brand in registry.manual_brands():
+        if selected(brand.slug):
+            count = sum(1 for r in manual_rows if r.brand == brand.slug)
+            stats.results.append(BrandResult(brand.slug, "ok", count, "hand-maintained"))
     scraped.extend((r, True) for r in manual_rows)
-    stats.brands_succeeded.extend(
-        b.slug for b in registry.manual_brands() if selected(b.slug)
-    )
 
     # 5. Normalize + uid; within-brand collision keeps first row, loudly.
     locations: dict[str, Location] = {}
