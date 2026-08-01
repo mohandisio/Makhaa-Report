@@ -9,7 +9,7 @@ from typing import Callable
 
 from ..fetch import Fetch
 from ..models import RawLocation
-from .json_sites import scrape_qamaria
+from .json_sites import scrape_qahwah_house, scrape_qamaria
 from .multi_page import scrape_haraz
 from .single_page import scrape_moka_and_co
 
@@ -18,5 +18,6 @@ ScrapeFn = Callable[[Fetch], list[RawLocation]]
 SCRAPERS: dict[str, ScrapeFn] = {
     "haraz": scrape_haraz,
     "moka_and_co": scrape_moka_and_co,
+    "qahwah_house": scrape_qahwah_house,
     "qamaria": scrape_qamaria,
 }

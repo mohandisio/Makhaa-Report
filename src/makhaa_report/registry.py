@@ -46,10 +46,17 @@ BRANDS: tuple[Brand, ...] = (
     Brand(
         slug="qahwah_house",
         display_name="Qahwah House",
-        locator_url="https://qahwahhouse.com",
+        locator_url="https://qahwahhouse.com/locations",
         method="scrape",
         band=(24, 35),
-        notes="/locations/<slug> pages discovered via sitemap.xml.",
+        notes=(
+            "One schema.org CafeOrCoffeeShop block per store on the "
+            "locations page, with coordinates, phone and hours; the "
+            "sitemap lists no per-store pages and several stores share a "
+            "URL. One store publishes a street with no city or state and "
+            "is skipped — add it through overrides.csv if it matters. No "
+            "coming-soon markers appear here."
+        ),
     ),
     Brand(
         slug="moka_and_co",

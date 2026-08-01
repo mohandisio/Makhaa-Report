@@ -5,7 +5,7 @@ and update the expectations here.
 """
 
 from makhaa_report.registry import get_brand
-from makhaa_report.scrapers.json_sites import scrape_qamaria
+from makhaa_report.scrapers.json_sites import scrape_qahwah_house, scrape_qamaria
 
 
 def test_qamaria_parses_us_cafes(fixture_fetch):
@@ -35,3 +35,40 @@ def test_qamaria_excludes_catering_and_non_us(fixture_fetch):
         "MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA "
         "WA WV WI WY DC".split()
     )
+
+
+def test_qahwah_house_reads_structured_data(fixture_fetch):
+    rows = scrape_qahwah_house(fixture_fetch("qahwah_house"))
+
+    low, high = get_brand("qahwah_house").band
+    assert low <= len(rows) <= high
+
+    # Every store publishes coordinates, so none of these need geocoding.
+    assert all(r.lat is not None and r.lon is not None for r in rows)
+
+    west_dearborn = next(r for r in rows if r.street == "22000 Michigan Ave")
+    assert west_dearborn.city == "Dearborn"
+    assert west_dearborn.state == "MI"
+    assert west_dearborn.postal == "48124"
+    assert west_dearborn.phone == "(313) 427-8928"
+    assert west_dearborn.lat == 42.3064061
+
+
+def test_qahwah_house_keeps_stores_published_without_a_zip(fixture_fetch):
+    rows = scrape_qahwah_house(fixture_fetch("qahwah_house"))
+
+    # Several stores are published as "street, city, ST, USA".
+    ann_arbor = next(r for r in rows if r.city == "Ann Arbor")
+    assert (ann_arbor.street, ann_arbor.state, ann_arbor.postal) == (
+        "211 North Maple Road",
+        "MI",
+        None,
+    )
+
+
+def test_qahwah_house_ignores_non_store_blocks(fixture_fetch):
+    rows = scrape_qahwah_house(fixture_fetch("qahwah_house"))
+
+    # The page also carries Organization and BreadcrumbList blocks.
+    assert all(r.brand == "qahwah_house" for r in rows)
+    assert not any(r.name in ("Qahwah House", "Home", "Locations") for r in rows)
