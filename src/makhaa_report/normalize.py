@@ -144,6 +144,11 @@ def _split_street_city(head: str) -> tuple[str, str] | None:
             cut += 1
     while cut + 1 < len(tokens) and tokens[cut].startswith("#"):
         cut += 1
+    # A bare suite letter with no marker: "6311 Stadium Dr B Clemmons".
+    # Directionals were already consumed above, so anything left that is
+    # a single letter belongs to the street, not the city.
+    if cut + 1 < len(tokens) and len(tokens[cut].strip(".")) == 1 and tokens[cut][0].isalpha():
+        cut += 1
     if cut >= len(tokens):
         return None
     return " ".join(tokens[:cut]), " ".join(tokens[cut:])
