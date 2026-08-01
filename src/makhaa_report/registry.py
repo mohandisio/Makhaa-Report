@@ -1,8 +1,13 @@
-"""Brand registry: the 14 known chains, count bands, and lookalike exclusions.
+"""Brand registry: the 14 known chains, drift bands, and lookalike exclusions.
 
-Source of truth is this file, verified 2026-07-31 from each brand's own
-locator. Bands double as scrape drift-check baselines. Re-verify counts
-before tightening any band.
+Bands are guardrails, not counts. They exist to catch a scrape that has
+gone wrong, and are reset from what the scraper actually returns — never
+from a number read off a website by hand, which is stale the moment it is
+written. The scrape is the source of truth for how many stores a brand has;
+nothing in this file should claim to know that.
+
+Notes record structure and traps: where the data lives, what has to be
+excluded, what the locator cannot tell us.
 """
 
 from .models import Brand, Exclusion
@@ -15,16 +20,21 @@ BRANDS: tuple[Brand, ...] = (
         method="scrape",
         band=(55, 75),
         franchises=True,
-        notes="16 per-state pages /pages/<state>-locations; summary page is stale, ignore it. 243 claimed coming soon.",
+        notes="16 per-state pages /pages/<state>-locations; summary page is stale, ignore it.",
     ),
     Brand(
         slug="qamaria",
         display_name="Qamaria Yemeni Coffee",
-        locator_url="https://qamariacoffee.com",
+        locator_url="https://www.qamariacoffee.com/cafes",
         method="scrape",
-        band=(32, 45),
+        band=(44, 60),
         franchises=True,
-        notes="Squarespace ?format=json. 800+ franchise applications claimed.",
+        notes=(
+            "Storepoint map widget; data comes from its API, not Squarespace. "
+            "Catering service-area rows and non-US stores are excluded. The "
+            "feed carries no coming-soon flag, so the announced pipeline is "
+            "invisible for this brand."
+        ),
     ),
     Brand(
         slug="qahwah_house",
@@ -40,7 +50,7 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://mokanco.com/pages/locations",
         method="scrape",
         band=(23, 35),
-        notes="Two parallel URL structures on one domain — scrape exactly one or double-count. ~15 coming soon.",
+        notes="Two parallel URL structures on one domain — scrape exactly one or double-count.",
     ),
     Brand(
         slug="shibam",
@@ -48,7 +58,7 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://shibamcoffee.com",
         method="scrape",
         band=(18, 26),
-        notes="WP REST /wp-json/wp/v2/pages?slug=our-locations&_fields=content. ~10 coming soon.",
+        notes="WP REST /wp-json/wp/v2/pages?slug=our-locations&_fields=content.",
     ),
     Brand(
         slug="arwa",
@@ -56,7 +66,6 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://arwacoffee.com/locations",
         method="scrape",
         band=(10, 18),
-        notes="~30 announced coming soon.",
     ),
     Brand(
         slug="matari",
@@ -94,7 +103,6 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://caffeena.com/locations",
         method="scrape",
         band=(1, 8),
-        notes="1 open, 6 announced.",
     ),
     Brand(
         slug="mokafe",
@@ -102,7 +110,11 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://mymokafe.com",
         method="scrape",
         band=(1, 12),
-        notes="Open count unresolved (2 or 10). Hand-resolve before publishing any number; tighten band then. Distinct company from Moka & Co.",
+        notes=(
+            "Prior research disagreed on which storefronts are actually "
+            "MOKAFÉ; verify by hand before publishing, and tighten the band "
+            "once the scraper settles. Distinct company from Moka & Co."
+        ),
     ),
     Brand(
         slug="mohka_house",
@@ -111,7 +123,7 @@ BRANDS: tuple[Brand, ...] = (
         method="manual",
         band=(0, 5),
         hq="Oakland, CA",
-        notes="No website. One store in Oakland. Hand-maintained CSV.",
+        notes="No website; hand-maintained CSV.",
     ),
     Brand(
         slug="sanaa_cafe",
@@ -121,9 +133,10 @@ BRANDS: tuple[Brand, ...] = (
         band=(0, 15),
         alt_domains=("sanaahousecafe.com",),
         notes=(
-            "Locator provably incomplete (omits SF stores press confirms, plus "
-            "Hayward and announced Long Beach); 'coming soon' labels unreliable "
-            "(order-button slot). Hand-maintained CSV; 3 is a floor, not a count."
+            "Locator provably incomplete — it omits stores the press confirms "
+            "are trading — and its 'coming soon' labels are unreliable, since "
+            "the label sits in the order-button slot. Hand-maintained CSV; "
+            "treat the total as a floor, not a count."
         ),
     ),
 )

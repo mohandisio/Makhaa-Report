@@ -61,6 +61,31 @@ def normalize_state(raw: str) -> str:
     raise ValueError(f"unrecognized state: {raw!r}")
 
 
+# "7706 Allen Rd, Allen Park, MI 48101" and the comma-less variants
+# locators publish. Anything without a two-letter state plus ZIP is not a
+# US address and is rejected rather than guessed at.
+_US_ADDRESS = re.compile(
+    r"^(?P<street>.+?),?\s*(?P<city>[^,]+),\s*(?P<state>[A-Z]{2})\s+(?P<postal>\d{5})(?:-\d{4})?\.?$"
+)
+
+
+def split_us_address(raw: str) -> tuple[str, str, str, str] | None:
+    """Split a one-line US address into (street, city, state, postal).
+
+    Returns None when the string isn't a US address — Canadian and Gulf
+    stores appear in several brands' feeds and are out of scope.
+    """
+    match = _US_ADDRESS.match(" ".join(raw.split()))
+    if match is None:
+        return None
+    return (
+        match["street"].strip(),
+        match["city"].strip(),
+        match["state"],
+        match["postal"],
+    )
+
+
 def normalize_postal(raw: str | None) -> str | None:
     if not raw:
         return None
