@@ -199,14 +199,16 @@ BRANDS: tuple[Brand, ...] = (
         slug="sanaa_cafe",
         display_name="Sana'a Cafe",
         locator_url="https://thesanaacafe.com",
-        method="manual",
-        band=(0, 15),
+        method="scrape",
+        band=(4, 12),
         alt_domains=("sanaahousecafe.com",),
         notes=(
-            "Locator provably incomplete — it omits stores the press confirms "
-            "are trading — and its 'coming soon' labels are unreliable, since "
-            "the label sits in the order-button slot. Hand-maintained CSV; "
-            "treat the total as a floor, not a count."
+            "Divi blurbs in runs of four: heading, address, phone, hours. "
+            "Behind a WAF that always answers in Brotli, hence the brotli "
+            "dependency. Treat the total as a floor, not a count: the "
+            "locator omits stores the press confirms are trading, and it "
+            "publishes Sacramento under the Oakland Broadway address, so "
+            "that row is dropped. Corrections go in overrides.csv."
         ),
     ),
 )

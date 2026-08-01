@@ -480,3 +480,78 @@ def scrape_mokafe(fetch: Fetch) -> list[RawLocation]:
         )
 
     return rows
+
+
+SANAA_URL = "https://thesanaacafe.com/locations/"
+
+
+def scrape_sanaa_cafe(fetch: Fetch) -> list[RawLocation]:
+    """Sana'a Cafe.
+
+    Divi blurb modules in runs of four: a heading, then address, phone
+    and hours. The site sits behind a WAF that always answers in Brotli,
+    which is why it needs the brotli decoder to read at all.
+
+    Treat the result as a floor rather than a count. The locator omits
+    stores the press confirms are trading, and it publishes at least one
+    store under another's address, so a second title sharing an address
+    is dropped and logged. Corrections belong in overrides.csv.
+    """
+    soup = BeautifulSoup(fetch(SANAA_URL), "lxml")
+    for tag in soup.find_all(["script", "style"]):
+        tag.decompose()
+
+    rows: list[RawLocation] = []
+    seen: dict[tuple[str, str], str] = {}
+    name = ""
+    pending: dict[str, str] = {}
+
+    def flush() -> None:
+        address = split_us_address(pending.get("address", ""))
+        if not name or address is None:
+            return
+        street, city, state, postal = address
+        key = (street.casefold(), city.casefold())
+        if key in seen:
+            log.warning(
+                "sanaa_cafe: %r publishes the same address as %r — dropping "
+                "the duplicate; correct it in overrides.csv",
+                name, seen[key],
+            )
+            return
+        seen[key] = name
+        rows.append(
+            RawLocation(
+                brand="sanaa_cafe",
+                name=name,
+                street=street,
+                city=city,
+                state=state,
+                postal=postal,
+                status="open",
+                phone=pending.get("phone"),
+                hours=pending.get("hours"),
+                source_url=SANAA_URL,
+                fragment=" | ".join(v for v in (name, *pending.values()) if v),
+            )
+        )
+
+    for blurb in soup.select(".et_pb_blurb"):
+        heading = blurb.select_one(".et_pb_module_header")
+        if heading is not None:
+            flush()
+            name, pending = " ".join(heading.get_text(" ", strip=True).split()), {}
+            continue
+        description = blurb.select_one(".et_pb_blurb_description")
+        if description is None:
+            continue
+        text = " ".join(description.get_text(" ", strip=True).split())
+        if split_us_address(text) is not None:
+            pending["address"] = text
+        elif text.startswith("+"):
+            pending["phone"] = text
+        else:
+            pending["hours"] = text
+    flush()
+
+    return rows

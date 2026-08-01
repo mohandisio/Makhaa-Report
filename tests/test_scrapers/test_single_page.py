@@ -14,6 +14,7 @@ from makhaa_report.scrapers.single_page import (
     scrape_moka_and_co,
     scrape_mokafe,
     scrape_qatra,
+    scrape_sanaa_cafe,
 )
 
 
@@ -209,3 +210,28 @@ def test_mokafe_splits_name_from_address(fixture_fetch):
     # Two Brooklyn stores share Manhattan Ave; both must survive.
     manhattan_ave = [r for r in rows if r.street.endswith("Manhattan Ave")]
     assert len(manhattan_ave) == 2
+
+
+def test_sanaa_groups_blurbs_into_stores(fixture_fetch):
+    rows = scrape_sanaa_cafe(fixture_fetch("sanaa_cafe"))
+
+    low, high = get_brand("sanaa_cafe").band
+    assert low <= len(rows) <= high
+
+    flagship = next(r for r in rows if r.city == "San Francisco")
+    assert flagship.street == "199 New Montgomery St"
+    assert flagship.phone == "+1 (415) 932-6935"
+    assert flagship.hours == "Mon-Sun: 6:00 AM – 12:00 AM"
+
+    # Telegraph is published without a ZIP.
+    telegraph = next(r for r in rows if r.street == "4770 Telegraph Ave")
+    assert telegraph.postal is None
+
+
+def test_sanaa_drops_a_store_published_under_another_address(fixture_fetch):
+    rows = scrape_sanaa_cafe(fixture_fetch("sanaa_cafe"))
+
+    # The site gives Sacramento the Oakland Broadway address; keeping
+    # both would put a phantom store in Oakland.
+    assert not any("Sacramento" in r.name for r in rows)
+    assert sum(r.street == "801 Broadway" for r in rows) == 1
