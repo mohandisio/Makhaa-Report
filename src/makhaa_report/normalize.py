@@ -61,29 +61,90 @@ def normalize_state(raw: str) -> str:
     raise ValueError(f"unrecognized state: {raw!r}")
 
 
-# "7706 Allen Rd, Allen Park, MI 48101" and the comma-less variants
-# locators publish. Anything without a two-letter state plus ZIP is not a
-# US address and is rejected rather than guessed at.
-_US_ADDRESS = re.compile(
-    r"^(?P<street>.+?),?\s*(?P<city>[^,]+),\s*(?P<state>[A-Z]{2})\s+(?P<postal>\d{5})(?:-\d{4})?\.?$"
+_COUNTRY_SUFFIX = re.compile(
+    r",?\s*(united states(\s+of\s+america)?|u\.?s\.?a\.?|u\.?s\.?)\.?$", re.I
 )
+
+# Anchored on the state-plus-ZIP tail, which every US address has and no
+# foreign one does. State may be a code or a full name; the comma before
+# it is optional because locators drop it constantly.
+_STATE_PATTERN = "|".join(
+    re.escape(name) for name in sorted(set(_STATES) | {c.lower() for c in _STATE_CODES},
+                                       key=len, reverse=True)
+)
+_US_TAIL = re.compile(
+    rf"^(?P<head>.+?),?\s+(?P<state>{_STATE_PATTERN}),?\s+(?P<postal>\d{{5}})(?:-\d{{4}})?\.?$",
+    re.I,
+)
+
+# Tokens that end a street name. Used only when the address has no comma
+# separating street from city ("725 Fulton St. Brooklyn"), which is common
+# enough that rejecting those rows would lose real stores.
+_STREET_TYPES = {
+    "st", "street", "ave", "avenue", "av", "blvd", "boulevard", "rd", "road",
+    "dr", "drive", "ln", "lane", "ct", "court", "pl", "place", "pkwy",
+    "parkway", "hwy", "highway", "way", "sq", "square", "ter", "terrace",
+    "cir", "circle", "plaza", "trl", "trail", "loop", "pike", "row",
+    "expy", "expressway", "tpke", "turnpike", "broadway", "walk", "run",
+}
+_DIRECTIONALS = {"n", "s", "e", "w", "ne", "nw", "se", "sw"}
+_UNIT_MARKERS = {
+    "ste", "suite", "unit", "apt", "apartment", "fl", "floor", "bldg",
+    "building", "rm", "room", "no", "#",
+}
+_UNIT_ID = re.compile(r"^#?[\w-]{1,8}$")
+# Numbered routes stand in for a street type: "1529 US-14 W Rochester".
+_HIGHWAY = re.compile(r"^(us|sr|fm|rt|rte|route|hwy|highway|county|cr|m)[-\s]?\d+[a-z]?$", re.I)
+
+
+def _split_street_city(head: str) -> tuple[str, str] | None:
+    """Separate street from city in the part preceding the state."""
+    if "," in head:
+        street, _, city = head.rpartition(",")
+        return street.strip(), city.strip()
+
+    # No comma: cut after the last street-type token, then step past any
+    # directional or unit designator trailing it, so "Ave NE Seattle" and
+    # "Rd Ste 102 Mesa" both leave the city alone.
+    tokens = head.split()
+    cut = None
+    for i, token in enumerate(tokens):
+        if token.strip(".").casefold() in _STREET_TYPES or _HIGHWAY.match(token):
+            cut = i + 1
+    if cut is None or cut >= len(tokens):
+        return None
+    if tokens[cut].strip(".").casefold() in _DIRECTIONALS and cut + 1 < len(tokens):
+        cut += 1
+    while cut + 1 < len(tokens) and tokens[cut].strip(".#").casefold() in _UNIT_MARKERS:
+        cut += 1
+        if cut + 1 < len(tokens) and _UNIT_ID.match(tokens[cut]):
+            cut += 1
+    while cut + 1 < len(tokens) and tokens[cut].startswith("#"):
+        cut += 1
+    if cut >= len(tokens):
+        return None
+    return " ".join(tokens[:cut]), " ".join(tokens[cut:])
 
 
 def split_us_address(raw: str) -> tuple[str, str, str, str] | None:
     """Split a one-line US address into (street, city, state, postal).
 
     Returns None when the string isn't a US address — Canadian and Gulf
-    stores appear in several brands' feeds and are out of scope.
+    stores appear in several brands' feeds and are out of scope — or when
+    street and city can't be told apart, which is worth losing a row over
+    rather than guessing at the uid.
     """
-    match = _US_ADDRESS.match(" ".join(raw.split()))
+    cleaned = _COUNTRY_SUFFIX.sub("", " ".join(raw.split()))
+    match = _US_TAIL.match(cleaned)
     if match is None:
         return None
-    return (
-        match["street"].strip(),
-        match["city"].strip(),
-        match["state"],
-        match["postal"],
-    )
+    parts = _split_street_city(match["head"])
+    if parts is None:
+        return None
+    street, city = parts
+    if not street or not city:
+        return None
+    return street, city, normalize_state(match["state"]), match["postal"]
 
 
 def normalize_postal(raw: str | None) -> str | None:
