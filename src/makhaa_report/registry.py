@@ -219,19 +219,24 @@ BRANDS: tuple[Brand, ...] = (
         display_name="House of Mokhah",
         locator_url="https://www.houseofmokhaycc.com/cafes",
         method="scrape",
-        band=(1, 10),
-        notes="Squarespace with schema blocks. Band provisional until a first scrape sets it.",
+        band=(1, 5),
+        notes=(
+            "Squarespace; the address sits in one element with the "
+            "street and city line as separate text nodes. A further "
+            "location is announced in prose with no address, so it is "
+            "not captured."
+        ),
     ),
     Brand(
         slug="biladi",
         display_name="Biladi Coffee House",
         locator_url="https://biladicoffeehouse.com",
         method="scrape",
-        band=(1, 10),
+        band=(1, 6),
         franchises=True,
         notes=(
-            "Elementor; addresses carry pipe-separated prefixes that must "
-            "be stripped. Band provisional until a first scrape sets it."
+            "Elementor; addresses carry a pipe-separated label prefix, "
+            "stripped by the address parser."
         ),
     ),
     Brand(
@@ -239,12 +244,13 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Original Mocha",
         locator_url="https://originalmocha.com",
         method="scrape",
-        band=(1, 10),
+        band=(1, 8),
         franchises=True,
         notes=(
-            "WordPress with a page per store (/murphy-texas/); the home "
-            "page carries no address. Band provisional until a first "
-            "scrape sets it."
+            "WordPress with a page per store. The sitemap omits them "
+            "and the home page carries no address, so store pages are "
+            "found by their city-then-state slug — new stores appear "
+            "without anyone editing a list."
         ),
     ),
     Brand(
@@ -252,30 +258,27 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Queen Yemeni Coffee",
         locator_url="https://queencoffeehouse.com",
         method="scrape",
-        band=(1, 8),
-        notes=(
-            "Elementor; addresses use a middot between street and city. "
-            "Band provisional until a first scrape sets it."
-        ),
+        band=(1, 5),
+        notes="Elementor; a middot separates street from city.",
     ),
     Brand(
         slug="socotra",
         display_name="Socotra Coffee House",
         locator_url="https://socotracoffeehouse.framer.website",
         method="scrape",
-        band=(1, 6),
-        notes="Framer, but server-rendered. Band provisional until a first scrape sets it.",
+        band=(1, 4),
+        notes="Framer, but server-rendered; the address sits whole in a map link.",
     ),
     Brand(
         slug="mochabox",
         display_name="MochaBox Coffee",
         locator_url="https://mochaboxcoffee.com",
         method="scrape",
-        band=(1, 6),
+        band=(1, 4),
         notes=(
-            "Wix; publishes its ZIP as a six-digit typo, so the postcode "
-            "is dropped rather than guessed. Band provisional until a "
-            "first scrape sets it."
+            "Wix, with street and city in separate elements. Publishes "
+            "a six-digit postcode, which is dropped rather than "
+            "trimmed into a plausible wrong ZIP."
         ),
     ),
     Brand(

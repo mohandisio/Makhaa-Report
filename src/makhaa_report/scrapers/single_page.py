@@ -14,6 +14,8 @@ log = logging.getLogger("makhaa")
 
 # Cheap pre-filter for text nodes worth handing to the address parser.
 _LOOKS_LIKE_ADDRESS = re.compile(r"\b[A-Z]{2}\s+\d{5}\b")
+# A line that opens like a street: "1050 Haywood Rd."
+_STREET_START = re.compile(r"^\d{1,6}\s+\S+", re.I)
 
 # /pages/locations redirects here. Store detail pages live at
 # mokanco.com/<slug>/, but every address is already on this page, so
@@ -555,3 +557,181 @@ def scrape_sanaa_cafe(fetch: Fetch) -> list[RawLocation]:
     flush()
 
     return rows
+
+
+SOCOTRA_URL = "https://socotracoffeehouse.framer.website"
+MOCHABOX_URL = "https://mochaboxcoffee.com"
+
+# A postcode with too many digits: real on MochaBox's site, and worth
+# dropping rather than truncating into a plausible-looking wrong ZIP.
+_BAD_POSTAL = re.compile(r",?\s*\d{6,}\s*$")
+
+
+def scrape_socotra(fetch: Fetch) -> list[RawLocation]:
+    """Socotra Coffee House.
+
+    Framer, but server-rendered: the single cafe's address sits whole
+    inside a map link.
+    """
+    soup = BeautifulSoup(fetch(SOCOTRA_URL), "lxml")
+    for tag in soup.find_all(["script", "style"]):
+        tag.decompose()
+
+    rows: list[RawLocation] = []
+    seen: set[tuple[str, str]] = set()
+
+    for node in soup.find_all(string=_LOOKS_LIKE_ADDRESS):
+        address = split_us_address(" ".join(str(node).split()))
+        if address is None:
+            continue
+        street, city, state, postal = address
+        if (street, city) in seen:
+            continue
+        seen.add((street, city))
+        rows.append(
+            RawLocation(
+                brand="socotra",
+                name=city,
+                street=street,
+                city=city,
+                state=state,
+                postal=postal,
+                status="open",
+                source_url=SOCOTRA_URL,
+                fragment=" ".join(str(node).split()),
+            )
+        )
+
+    return rows
+
+
+def scrape_mochabox(fetch: Fetch) -> list[RawLocation]:
+    """MochaBox Coffee.
+
+    Wix, with the street and the city line in separate elements, so the
+    two are joined before parsing. The site publishes a six-digit
+    postcode; it is dropped rather than trimmed into a wrong ZIP, which
+    costs nothing since the address parses without one.
+    """
+    soup = BeautifulSoup(fetch(MOCHABOX_URL), "lxml")
+    for tag in soup.find_all(["script", "style", "title"]):
+        tag.decompose()
+
+    texts = [
+        " ".join(str(node).split())
+        for node in soup.find_all(string=True)
+        if str(node).strip()
+    ]
+
+    rows: list[RawLocation] = []
+    for index, text in enumerate(texts):
+        if not _STREET_START.match(text):
+            continue
+        for tail in texts[index + 1 : index + 4]:
+            candidate = f"{text.rstrip('.')}, {_BAD_POSTAL.sub('', tail)}"
+            address = split_us_address(candidate)
+            if address is None:
+                continue
+            street, city, state, postal = address
+            return [
+                RawLocation(
+                    brand="mochabox",
+                    name=city,
+                    street=street,
+                    city=city,
+                    state=state,
+                    postal=postal,
+                    status="open",
+                    source_url=MOCHABOX_URL,
+                    fragment=f"{text} | {tail}",
+                )
+            ]
+
+    log.warning("mochabox: no address found")
+    return rows
+
+
+QUEEN_URL = "https://queencoffeehouse.com"
+BILADI_URL = "https://biladicoffeehouse.com"
+HOUSE_OF_MOKHAH_URL = "https://www.houseofmokhaycc.com/cafes"
+
+
+def _single_page_stores(
+    fetch: Fetch, brand: str, url: str, *, status: str = "open"
+) -> list[RawLocation]:
+    """Collect every parseable address on one page, deduplicated.
+
+    Enough for the smaller brands, whose pages carry a handful of
+    addresses in whatever markup their site builder produced.
+    """
+    soup = BeautifulSoup(fetch(url), "lxml")
+    for tag in soup.find_all(["script", "style", "title"]):
+        tag.decompose()
+
+    rows: list[RawLocation] = []
+    seen: set[tuple[str, str]] = set()
+
+    for text in _innermost_address_texts(soup):
+        address = split_us_address(text)
+        if address is None:
+            continue
+        street, city, state, postal = address
+        if (street, city) in seen:
+            continue
+        seen.add((street, city))
+        rows.append(
+            RawLocation(
+                brand=brand,
+                name=city,
+                street=street,
+                city=city,
+                state=state,
+                postal=postal,
+                status=status,
+                source_url=url,
+                fragment=text,
+            )
+        )
+
+    return rows
+
+
+def _innermost_address_texts(soup) -> list[str]:
+    """Text of the smallest elements that still contain a whole address.
+
+    Reading raw text nodes misses addresses split across children — a
+    street and its city line inside one element — while reading every
+    element would join unrelated stores together. The innermost element
+    that matches is the one that holds exactly one address.
+    """
+    texts: list[str] = []
+    for element in soup.find_all(True):
+        text = " ".join(element.get_text(" ", strip=True).split())
+        if not _LOOKS_LIKE_ADDRESS.search(text):
+            continue
+        if any(
+            _LOOKS_LIKE_ADDRESS.search(" ".join(child.get_text(" ", strip=True).split()))
+            for child in element.find_all(True)
+        ):
+            continue
+        texts.append(text)
+    return texts
+
+
+def scrape_queen(fetch: Fetch) -> list[RawLocation]:
+    """Queen Yemeni Coffee. Addresses use a middot between street and city."""
+    return _single_page_stores(fetch, "queen", QUEEN_URL)
+
+
+def scrape_biladi(fetch: Fetch) -> list[RawLocation]:
+    """Biladi Coffee House. Addresses carry a pipe-separated label prefix."""
+    return _single_page_stores(fetch, "biladi", BILADI_URL)
+
+
+def scrape_house_of_mokhah(fetch: Fetch) -> list[RawLocation]:
+    """House of Mokhah.
+
+    The cafes page announces a further location in prose with no address,
+    so only the trading store is captured.
+    """
+    return _single_page_stores(fetch, "house_of_mokhah", HOUSE_OF_MOKHAH_URL)

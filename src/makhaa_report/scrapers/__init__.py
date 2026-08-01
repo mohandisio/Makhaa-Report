@@ -10,23 +10,34 @@ from typing import Callable
 from ..fetch import Fetch
 from ..models import RawLocation
 from .json_sites import scrape_qahwah_house, scrape_qamaria, scrape_shibam
-from .multi_page import scrape_haraz
+from .multi_page import scrape_haraz, scrape_original_mocha
 from .spa_bundle import scrape_port, scrape_qishr
 from .single_page import (
     scrape_arwa,
+    scrape_biladi,
     scrape_caffeena,
     scrape_delah,
     scrape_heyma,
+    scrape_house_of_mokhah,
     scrape_matari,
+    scrape_mochabox,
     scrape_moka_and_co,
     scrape_mokafe,
     scrape_qatra,
+    scrape_queen,
     scrape_sanaa_cafe,
+    scrape_socotra,
 )
 
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
 
 SCRAPERS: dict[str, ScrapeFn] = {
+    "socotra": scrape_socotra,
+    "queen": scrape_queen,
+    "original_mocha": scrape_original_mocha,
+    "mochabox": scrape_mochabox,
+    "house_of_mokhah": scrape_house_of_mokhah,
+    "biladi": scrape_biladi,
     "arwa": scrape_arwa,
     "caffeena": scrape_caffeena,
     "delah": scrape_delah,
