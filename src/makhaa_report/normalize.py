@@ -72,8 +72,12 @@ _STATE_PATTERN = "|".join(
     re.escape(name) for name in sorted(set(_STATES) | {c.lower() for c in _STATE_CODES},
                                        key=len, reverse=True)
 )
+# The ZIP is optional: several brands publish "street, city, ST, USA".
+# postal is nullable and plays no part in the uid, so its absence costs
+# nothing but the postcode itself.
 _US_TAIL = re.compile(
-    rf"^(?P<head>.+?),?\s+(?P<state>{_STATE_PATTERN}),?\s+(?P<postal>\d{{5}})(?:-\d{{4}})?\.?$",
+    rf"^(?P<head>.+?),?\s+(?P<state>{_STATE_PATTERN})"
+    rf"(?:,?\s+(?P<postal>\d{{5}})(?:-\d{{4}})?)?\.?$",
     re.I,
 )
 
@@ -143,6 +147,10 @@ def split_us_address(raw: str) -> tuple[str, str, str, str] | None:
         return None
     street, city = parts
     if not street or not city:
+        return None
+    if len(city) == 2 and city.isupper():
+        # A bare code where the city should be means the tail matched a
+        # foreign province ("Toronto, ON, CA"), not a US city and state.
         return None
     return street, city, normalize_state(match["state"]), match["postal"]
 
