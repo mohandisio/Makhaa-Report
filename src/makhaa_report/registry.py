@@ -20,7 +20,14 @@ BRANDS: tuple[Brand, ...] = (
         method="scrape",
         band=(55, 75),
         franchises=True,
-        notes="16 per-state pages /pages/<state>-locations; summary page is stale, ignore it.",
+        notes=(
+            "One /pages/<state>-locations page per state, discovered from "
+            "the sitemap so a new state cannot be missed; the all-states "
+            "summary page is stale and skipped. Card headings are wrong on "
+            "at least one store, so the address is the identity. Roughly a "
+            "third of the cards link to a Maps search rather than a place "
+            "and carry no coordinates. No coming-soon markers appear here."
+        ),
     ),
     Brand(
         slug="qamaria",
