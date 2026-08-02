@@ -33,13 +33,31 @@ _STATE_CODES = set(_STATES.values())
 US_STATE_NAMES = frozenset(_STATES)
 
 # Canonical short forms for the street tokens locators actually vary on.
+# These decide identity, so they have to cover both how a locator writes a
+# street and how a geocoder answers: "Alafaya Trail" and "Alafaya Trl" are
+# one store, and if they hash differently a corrected row comes back as a
+# second store on the next scrape.
 _STREET_ABBREV = {
     "street": "st", "avenue": "ave", "av": "ave", "boulevard": "blvd",
     "road": "rd", "drive": "dr", "lane": "ln", "court": "ct",
     "place": "pl", "parkway": "pkwy", "highway": "hwy", "suite": "ste",
     "north": "n", "south": "s", "east": "e", "west": "w",
     "northeast": "ne", "northwest": "nw", "southeast": "se", "southwest": "sw",
+    # USPS suffix forms a geocoder answers with.
+    "trail": "trl", "plaza": "plz", "circle": "cir", "terrace": "ter",
+    "square": "sq", "freeway": "fwy", "expressway": "expy",
+    "turnpike": "tpke", "center": "ctr", "centre": "ctr", "crossing": "xing",
+    "junction": "jct", "extension": "ext", "heights": "hts", "landing": "lndg",
+    "station": "sta", "village": "vlg", "manor": "mnr", "ridge": "rdg",
 }
+
+# Multi-token names a geocoder collapses. Applied before tokenizing,
+# because no per-token rule can turn "Farm To Market 544" into "FM 544".
+_STREET_PHRASES = ((re.compile(r"\bfarm to market\b"), "fm"),)
+
+# City spellings that mean one place. "St Paul" and "Saint Paul" are the
+# same city, and the uid must not care which the locator used.
+_CITY_ABBREV = {"saint": "st", "mount": "mt", "fort": "ft"}
 
 # Matching is substring-based; "soon"/"opening" checked before "open".
 _OPEN_WORDS = ("open",)
@@ -48,9 +66,19 @@ _SOON_WORDS = ("soon", "opening")
 
 def normalize_street(raw: str) -> str:
     s = raw.casefold().strip()
-    s = re.sub(r"[.,#]", " ", s)
+    # The hyphen is punctuation here: "Troy-Schenectady Rd" and
+    # "Troy Schenectady Rd" are the same road.
+    s = re.sub(r"[.,#-]", " ", s)
+    for pattern, short in _STREET_PHRASES:
+        s = pattern.sub(short, s)
     tokens = [_STREET_ABBREV.get(t, t) for t in s.split()]
     return " ".join(tokens)
+
+
+def normalize_city_key(raw: str) -> str:
+    """The form of a city name used for identity, not for display."""
+    s = re.sub(r"[.,'’-]", " ", raw.casefold())
+    return " ".join(_CITY_ABBREV.get(t, t) for t in s.split())
 
 
 def normalize_state(raw: str) -> str:
@@ -191,6 +219,75 @@ def split_us_address(raw: str) -> tuple[str, str, str, str] | None:
     return street, city, normalize_state(match["state"]), match["postal"]
 
 
+# Unit designators worth cutting on. Deliberately narrower than
+# _UNIT_MARKERS: "no" is dropped because a street can legitimately start
+# with it, and a false cut silently truncates the street.
+_UNIT_WORDS = {
+    "ste", "suite", "suit", "unit", "apt", "apartment", "fl", "floor",
+    "bldg", "building", "rm", "room", "lot", "spc", "trlr",
+}
+
+
+def split_unit(street: str) -> tuple[str, str]:
+    """Separate the street line from its unit: '12 Lee Rd Ste 102' -> ('12 Lee Rd', 'Ste 102').
+
+    Geocoders match on the street line and drop the unit from their
+    output, so the unit has to travel separately and be re-appended. The
+    cut is only taken from the third token onwards, which keeps a street
+    genuinely named "Floor" or "Building" intact.
+    """
+    tokens = street.split()
+    for i, token in enumerate(tokens):
+        if i < 2:
+            continue
+        if token.startswith("#") or token.strip(".,").casefold() in _UNIT_WORDS:
+            return " ".join(tokens[:i]).strip(" ,"), " ".join(tokens[i:])
+    return street.strip(), ""
+
+
+# Tokens that stay capitalised when a geocoder introduces them, because
+# title-casing turns "NE" into "Ne" and "FM 544" into "Fm 544".
+_KEEP_UPPER = _DIRECTIONALS | {"fm", "us", "sr", "cr", "rr", "i"}
+
+
+def recase(canonical: str, original: str) -> str:
+    """Re-case a geocoder's shouted output using the original's spelling.
+
+    Census answers in capitals, so adopting its address verbatim would
+    shout the whole dataset and flatten "MacArthur" to "Macarthur". A
+    token the original already had keeps the original's casing; a token
+    the geocoder introduced ("TRAIL" -> "TRL") is title-cased.
+    """
+    seen: dict[str, str] = {}
+    # An original with no lowercase anywhere is shouting too, and has no
+    # casing worth keeping. Judged over the whole string, not per token,
+    # so "JW" survives in "JW Clay Blvd" without rescuing the "DR" in
+    # "LAKE FOREST DR".
+    if any(c.islower() for c in original):
+        for token in original.split():
+            # A street type has one right spelling, so let the canonical
+            # form win: preserving ours leaves "Canton Center RD" shouting
+            # inside an otherwise ordinary address. Proper nouns are what
+            # this is protecting.
+            if token.casefold() in _STREET_TYPES:
+                continue
+            seen.setdefault(token.casefold(), token)
+    out = []
+    for token in canonical.split():
+        key = token.casefold()
+        if key in seen:
+            out.append(seen[key])
+        elif key in _KEEP_UPPER:
+            out.append(token.upper())
+        elif token[:1].isdigit():
+            # title() would make "14TH" into "14Th"; an ordinal only ever
+            # wants its letters lowered.
+            out.append(token.capitalize())
+        else:
+            out.append(token.title())
+    return " ".join(out)
+
+
 def normalize_postal(raw: str | None) -> str | None:
     if not raw:
         return None
@@ -217,7 +314,7 @@ def make_uid(brand: str, street: str, city: str, state: str) -> str:
     # postal deliberately excluded: locators omit/typo ZIPs; street+city+state
     # is the stable identity.
     key = "|".join(
-        (brand, normalize_street(street), city.casefold().strip(), normalize_state(state))
+        (brand, normalize_street(street), normalize_city_key(city), normalize_state(state))
     )
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
@@ -240,9 +337,6 @@ def to_location(raw: RawLocation, now_iso: str, *, is_manual: bool = False) -> L
             else None
         ),
         geocode_flagged=False,
-        county=None,
-        tract=None,
-        cbsa=None,
         status=normalize_status(raw.status),
         status_note=raw.status_note.strip(),
         phone=raw.phone,

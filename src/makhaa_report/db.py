@@ -2,11 +2,14 @@
 
 import dataclasses
 import json
+import logging
 import sqlite3
 from pathlib import Path
 
 from . import config
 from .models import Brand, Exclusion, GEOCODE_SOURCES, Location, RunStats, STATUSES
+
+log = logging.getLogger("makhaa")
 
 _STATUS_LIST = ",".join(f"'{s}'" for s in STATUSES)
 _GEOSRC_LIST = ",".join(f"'{s}'" for s in GEOCODE_SOURCES)
@@ -32,7 +35,6 @@ CREATE TABLE IF NOT EXISTS locations (
     lat REAL, lon REAL,
     geocode_source TEXT CHECK (geocode_source IN ({_GEOSRC_LIST})),
     geocode_flagged INTEGER NOT NULL DEFAULT 0,
-    county TEXT, tract TEXT, cbsa TEXT,
     status TEXT NOT NULL DEFAULT 'unknown' CHECK (status IN ({_STATUS_LIST})),
     status_note TEXT, phone TEXT, hours TEXT,
     source_url TEXT, is_manual INTEGER NOT NULL DEFAULT 0,
@@ -81,6 +83,11 @@ _UPSERT = (
                           THEN excluded.geocode_source ELSE geocode_source END"""
 )
 
+# Columns an older database may still carry. CREATE TABLE IF NOT EXISTS
+# leaves an existing table alone, so dropping a column from _DDL is not
+# enough on its own.
+_RETIRED_LOCATION_COLS = ("county", "tract", "cbsa")
+
 # Canonical row order for exports — keeps weekly git diffs readable.
 _DUMP_ORDER = {
     "locations": "brand, state, city, street",
@@ -97,7 +104,86 @@ def connect(path: Path = config.DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(_DDL)
+    _drop_retired_columns(conn)
+    _widen_geocode_sources(conn)
+    _rekey_stale_uids(conn)
     return conn
+
+
+def _rekey_stale_uids(conn: sqlite3.Connection) -> None:
+    """Move rows whose uid predates the current normalizer.
+
+    The uid is a hash of the address, so widening an abbreviation re-keys
+    every row that uses it. Left alone, the next scrape would compute the
+    new uid, find no row under it, and insert the store a second time.
+    Recomputing here means a normalizer change converges instead of
+    quietly splitting the census in two.
+    """
+    from .normalize import make_uid
+
+    rows = conn.execute(
+        "SELECT uid, brand, street, city, state FROM locations"
+    ).fetchall()
+    taken = {r["uid"] for r in rows}
+    moved = 0
+    for row in rows:
+        current = make_uid(row["brand"], row["street"], row["city"], row["state"])
+        if current == row["uid"]:
+            continue
+        if current in taken:
+            log.warning(
+                "%s: '%s, %s' now shares an identity with another row — "
+                "left in place; one of them is a duplicate to drop by hand.",
+                row["brand"], row["street"], row["city"],
+            )
+            continue
+        rekey_location(conn, row["uid"], current, row["street"], row["city"],
+                       _postal_of(conn, row["uid"]))
+        taken.discard(row["uid"])
+        taken.add(current)
+        moved += 1
+    if moved:
+        log.info("re-keyed %d rows onto the current normalizer", moved)
+        conn.commit()
+
+
+def _postal_of(conn: sqlite3.Connection, uid: str) -> str | None:
+    return conn.execute("SELECT postal FROM locations WHERE uid=?", (uid,)).fetchone()[0]
+
+
+def _drop_retired_columns(conn: sqlite3.Connection) -> None:
+    present = {r["name"] for r in conn.execute("PRAGMA table_info(locations)")}
+    for column in _RETIRED_LOCATION_COLS:
+        if column in present:
+            conn.execute(f"ALTER TABLE locations DROP COLUMN {column}")
+    conn.commit()
+
+
+_LOCATION_INDEXES = ("idx_locations_brand", "idx_locations_state", "idx_locations_status")
+
+
+def _widen_geocode_sources(conn: sqlite3.Connection) -> None:
+    """Rebuild locations when its geocode_source CHECK is out of date.
+
+    SQLite cannot alter a CHECK constraint, so adding a geocoder means
+    copying the table. Indexes travel with the renamed original, so they
+    are dropped first and let the DDL recreate them.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='locations'"
+    ).fetchone()
+    if row is None or _GEOSRC_LIST in row[0]:
+        return
+    columns = ",".join(_LOCATION_COLS)
+    with conn:
+        conn.execute("ALTER TABLE locations RENAME TO locations_old")
+        for index in _LOCATION_INDEXES:
+            conn.execute(f"DROP INDEX IF EXISTS {index}")
+        conn.executescript(_DDL)
+        conn.execute(
+            f"INSERT INTO locations ({columns}) SELECT {columns} FROM locations_old"
+        )
+        conn.execute("DROP TABLE locations_old")
 
 
 def sync_registry(conn: sqlite3.Connection, brands: tuple[Brand, ...],
@@ -152,6 +238,36 @@ def insert_snapshot(conn: sqlite3.Connection, run_id: int, uid: str,
 
 def upsert_location(conn: sqlite3.Connection, loc: Location) -> None:
     conn.execute(_UPSERT, tuple(getattr(loc, c) for c in _LOCATION_COLS))
+
+
+def rekey_location(conn: sqlite3.Connection, old_uid: str, new_uid: str,
+                   street: str, city: str, postal: str | None) -> None:
+    """Store a corrected address, moving the row to the uid it now hashes to.
+
+    Updating in place rather than inserting the corrected row is what
+    keeps one store one row: an insert would leave the uncorrected
+    original behind with nothing pointing at it. Snapshots follow the
+    row so its history stays attached.
+    """
+    conn.execute(
+        "UPDATE locations SET uid=?, street=?, city=?, postal=? WHERE uid=?",
+        (new_uid, street, city, postal, old_uid),
+    )
+    if new_uid != old_uid:
+        conn.execute("UPDATE snapshots SET uid=? WHERE uid=?", (new_uid, old_uid))
+
+
+def set_coordinates(conn: sqlite3.Connection, uid: str, lat: float, lon: float,
+                    source: str) -> None:
+    conn.execute(
+        "UPDATE locations SET lat=?, lon=?, geocode_source=? WHERE uid=?",
+        (lat, lon, source, uid),
+    )
+
+
+def set_flagged(conn: sqlite3.Connection, uid: str, flagged: bool) -> None:
+    conn.execute("UPDATE locations SET geocode_flagged=? WHERE uid=?",
+                 (int(flagged), uid))
 
 
 def dump_table(conn: sqlite3.Connection, name: str) -> tuple[list[str], list[tuple]]:
