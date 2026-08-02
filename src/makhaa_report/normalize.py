@@ -79,7 +79,9 @@ _STATE_PATTERN = "|".join(
 # nothing but the postcode itself.
 _US_TAIL = re.compile(
     rf"^(?P<head>.+?),?\s+(?P<state>{_STATE_PATTERN})"
-    rf"(?:,?\s+(?P<postal>\d{{5}})(?:-\d{{4}})?)?\.?$",
+    # ZIP+4 arrives hyphenated or, on at least one site, as nine digits
+    # run together; either way only the five-digit ZIP is kept.
+    rf"(?:,?\s+(?P<postal>\d{{5}})(?:-?\d{{4}})?)?\.?$",
     re.I,
 )
 
