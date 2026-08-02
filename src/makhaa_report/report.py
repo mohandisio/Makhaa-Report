@@ -97,6 +97,10 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
     brands = brand_table(conn)
     colors = brand_colors(brands)
     statuses = status_counts(conn)
+    # The payload ships to the public page; keep it to what the pins and
+    # popups display, nothing that reads like a raw dataset row.
+    public = ("brand", "brand_name", "street", "city", "state",
+              "lat", "lon", "status", "phone", "hours")
     return {
         "generated_at": generated_at or utcnow_iso(),
         "headline": headline_stats(conn),
@@ -104,7 +108,7 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
         "states": state_counts(conn),
         "unmapped": unmapped,
         "payload": {
-            "shops": mapped,
+            "shops": [{k: s[k] for k in public} for s in mapped],
             "brands": brands,
             "brand_colors": colors,
             "states": state_counts(conn),

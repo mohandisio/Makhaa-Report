@@ -141,8 +141,12 @@ def test_embedded_json_matches_db(conn, tmp_path):
     payload = json.loads(match.group(1))
     assert len(payload["shops"]) == 5  # mapped rows only; ccc1 listed as unmapped
     assert {b["slug"] for b in payload["brands"]} == {"alpha", "beta", "gamma"}
-    assert "ccc1" not in {s["uid"] for s in payload["shops"]}
+    assert "6 Yew St" not in str(payload["shops"])  # unmapped row not in payload
     assert "Gamma Coffee" in html  # ...but the unmapped shop is on the page
+    # published payload carries display fields only, not dataset keys
+    assert set(payload["shops"][0]) == {"brand", "brand_name", "street", "city",
+                                        "state", "lat", "lon", "status",
+                                        "phone", "hours"}
 
 
 def test_hostile_field_is_escaped(conn, tmp_path):

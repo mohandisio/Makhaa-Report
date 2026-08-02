@@ -130,7 +130,7 @@ function popupFor(shop) {
     div.appendChild(el);
   };
   add(shop.brand_name, "b");
-  add(`${shop.street}, ${shop.city}, ${shop.state}${shop.postal ? " " + shop.postal : ""}`);
+  add(`${shop.street}, ${shop.city}, ${shop.state}`);
   if (shop.status !== "open") add(pretty(shop.status));
   add(shop.phone);
   add(shop.hours);
