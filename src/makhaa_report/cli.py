@@ -47,6 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_sanitize.add_argument("--list", action="store_true", dest="list_only",
                             help="print the queue and exit")
+    p_sanitize.add_argument("--adopt-coordinates", action="store_true",
+                            help="replace locator coordinates that disagree "
+                                 "with an exact census match")
+    p_sanitize.add_argument("--dry-run", action="store_true",
+                            help="show what would change, write nothing")
 
     p_export = sub.add_parser("export", help="mirror database to CSVs")
     p_export.add_argument("--out", default=None, metavar="DIR")
@@ -109,11 +114,29 @@ def main(argv: list[str] | None = None) -> int:
         from .console import render_sanitize_queue
         from .sanitize import find_problems
 
-        findings = find_problems(db.connect())
+        from .sanitize import adopt_coordinates
+
+        conn = db.connect()
+        findings = find_problems(conn)
         render_sanitize_queue(findings)
         if args.list_only:
             return 0
-        console.print("[dim]the interactive review is not built yet[/dim]")
+        if args.adopt_coordinates:
+            adopted = adopt_coordinates(conn, findings, dry_run=args.dry_run)
+            for f in adopted:
+                console.print(
+                    f"[green]{f.brand}[/] {f.address} "
+                    f"[dim]{f.lat:.4f},{f.lon:.4f} -> "
+                    f"{f.census.lat:.4f},{f.census.lon:.4f} ({f.drift:.0f} km)[/dim]"
+                )
+            console.print(f"{len(adopted)} coordinates adopted from census")
+            if args.dry_run:
+                console.print("[yellow]dry run — nothing written[/]")
+            return 0
+        console.print(
+            "[dim]addresses are corrected one at a time; "
+            "use --adopt-coordinates for the mechanical fixes[/dim]"
+        )
         return 0
 
     if args.command == "export":

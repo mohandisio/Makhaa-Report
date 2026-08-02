@@ -13,8 +13,8 @@ building the queue costs no requests.
 import sqlite3
 from dataclasses import dataclass
 
-from . import config, geo
-from .normalize import split_unit
+from . import config, db, geo, manual
+from .normalize import make_uid, split_unit
 
 #: Why a row is in the queue.
 KINDS = ("unconfirmed", "coordinate")
@@ -89,6 +89,71 @@ def find_problems(conn: sqlite3.Connection) -> list[Finding]:
                 findings.append(_make(row, "coordinate", c, o, drift))
 
     return findings
+
+
+def adopt_coordinates(conn: sqlite3.Connection, findings: list[Finding],
+                      *, dry_run: bool = False) -> list[Finding]:
+    """Replace a wrong locator coordinate with the one Census matched.
+
+    Only for findings where Census matched the address exactly, so the
+    coordinate is evidence about this address rather than a guess about
+    a similar one. Written to the database and recorded as an override,
+    because a locator that publishes its head office for a branch will
+    publish it again next week.
+    """
+    adopted: list[Finding] = []
+    for f in findings:
+        if f.kind != "coordinate" or f.census is None or f.census.lat is None:
+            continue
+        adopted.append(f)
+        if dry_run:
+            continue
+        db.set_coordinates(conn, f.uid, f.census.lat, f.census.lon, "census")
+        db.set_flagged(conn, f.uid, False)
+        manual.append_override(
+            f.uid,
+            {"lat": f"{f.census.lat:.6f}", "lon": f"{f.census.lon:.6f}"},
+            note=f"locator put this {f.drift:.0f} km away at "
+                 f"{f.lat:.4f},{f.lon:.4f}; census matched the address exactly",
+        )
+    if adopted and not dry_run:
+        conn.commit()
+    return adopted
+
+
+def correct_address(conn: sqlite3.Connection, uid: str, fields: dict[str, str],
+                    note: str) -> str:
+    """Write a researched correction, and return the uid the row now has.
+
+    The address feeds the uid, so a corrected row moves; the history
+    moves with it. Recorded as an override too, or the next scrape would
+    republish whatever the locator says and undo the work.
+    """
+    row = conn.execute(
+        "SELECT brand, street, city, state, postal FROM locations WHERE uid=?",
+        (uid,),
+    ).fetchone()
+    if row is None:
+        raise KeyError(f"no location with uid {uid}")
+
+    street = fields.get("street", row["street"])
+    city = fields.get("city", row["city"])
+    postal = fields.get("postal", row["postal"])
+    new_uid = make_uid(row["brand"], street, city, row["state"])
+
+    taken = {r[0] for r in conn.execute("SELECT uid FROM locations")}
+    with conn:
+        if new_uid != uid and new_uid in taken:
+            db.merge_into(conn, uid, new_uid)
+        else:
+            db.rekey_location(conn, uid, new_uid, street, city, postal)
+        if "lat" in fields and "lon" in fields:
+            db.set_coordinates(conn, new_uid, float(fields["lat"]),
+                               float(fields["lon"]), "manual")
+        db.set_flagged(conn, new_uid, False)
+        conn.execute("UPDATE locations SET is_manual=1 WHERE uid=?", (new_uid,))
+    manual.append_override(uid, fields, note=note)
+    return new_uid
 
 
 def _make(row, kind: str, census, osm, drift: float | None = None) -> Finding:
