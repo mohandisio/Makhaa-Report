@@ -189,6 +189,32 @@ def split_us_address(raw: str) -> tuple[str, str, str, str] | None:
     return street, city, normalize_state(match["state"]), match["postal"]
 
 
+# Unit designators worth cutting on. Deliberately narrower than
+# _UNIT_MARKERS: "no" is dropped because a street can legitimately start
+# with it, and a false cut silently truncates the street.
+_UNIT_WORDS = {
+    "ste", "suite", "suit", "unit", "apt", "apartment", "fl", "floor",
+    "bldg", "building", "rm", "room", "lot", "spc", "trlr",
+}
+
+
+def split_unit(street: str) -> tuple[str, str]:
+    """Separate the street line from its unit: '12 Lee Rd Ste 102' -> ('12 Lee Rd', 'Ste 102').
+
+    Geocoders match on the street line and drop the unit from their
+    output, so the unit has to travel separately and be re-appended. The
+    cut is only taken from the third token onwards, which keeps a street
+    genuinely named "Floor" or "Building" intact.
+    """
+    tokens = street.split()
+    for i, token in enumerate(tokens):
+        if i < 2:
+            continue
+        if token.startswith("#") or token.strip(".,").casefold() in _UNIT_WORDS:
+            return " ".join(tokens[:i]).strip(" ,"), " ".join(tokens[i:])
+    return street.strip(), ""
+
+
 def normalize_postal(raw: str | None) -> str | None:
     if not raw:
         return None
