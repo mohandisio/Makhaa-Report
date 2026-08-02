@@ -113,6 +113,54 @@ def apply_overrides(locations: dict[str, Location], now_iso: str) -> None:
             locations[loc.uid] = loc
 
 
+#: Column order written into overrides.csv.
+OVERRIDE_FIELDS = ("action", "uid", "brand", *MANUAL_FIELDS, "note")
+
+
+def append_override(uid: str, fields: dict[str, str], note: str,
+                    path: Path | None = None) -> bool:
+    """Record a patch in overrides.csv. False when it is already there.
+
+    A correction written only to the database is undone by the next
+    scrape, because the scraper is the source of truth for the rows it
+    produces. Overrides are applied last on every run, so this is what
+    makes a correction outlive the scrape that contradicts it.
+
+    An existing file keeps its own column order, so a file written before
+    a field was added or dropped still round-trips.
+    """
+    path = path or config.OVERRIDES_PATH
+    row = {"action": "patch", "uid": uid, "note": note,
+           **{k: v for k, v in fields.items() if v not in (None, "")}}
+
+    columns = list(OVERRIDE_FIELDS)
+    existing: list[dict[str, str]] = []
+    if path.is_file():
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            columns = reader.fieldnames or columns
+            existing = list(reader)
+    unknown = set(row) - set(columns)
+    if unknown:
+        raise ManualEntryError(
+            f"overrides.csv has no column for: {', '.join(sorted(unknown))}"
+        )
+    for old in existing:
+        if old.get("uid") == uid and all(
+            (old.get(k) or "") == v for k, v in row.items() if k != "note"
+        ):
+            return False
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    is_new = not path.is_file()
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        if is_new:
+            writer.writeheader()
+        writer.writerow({c: row.get(c, "") for c in columns})
+    return True
+
+
 class ManualEntryError(ValueError):
     """The record cannot be turned into a store row."""
 

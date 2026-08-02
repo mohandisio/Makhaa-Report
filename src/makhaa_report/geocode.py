@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-from . import config, db, geo
+from . import config, db, geo, manual
 from .normalize import make_uid, split_unit
 
 log = logging.getLogger("makhaa")
@@ -78,6 +78,8 @@ class GeocodeStats:
     verified: dict[str, int] = field(default_factory=dict)
     #: Addresses no source recognised, as "street, city, ST".
     unverified: list[str] = field(default_factory=list)
+    #: Adoptions written to overrides.csv so a re-scrape cannot undo them.
+    recorded: list[str] = field(default_factory=list)
 
     @property
     def total(self) -> int:
@@ -100,6 +102,25 @@ class GeocodeStats:
 
 def _squash(value: str) -> str:
     return "".join(ch for ch in value.casefold() if ch.isalnum())
+
+
+def _record(stats: "GeocodeStats", row, resolution) -> None:
+    """Keep a correction that moved a row, so a re-scrape cannot undo it.
+
+    The scraper still publishes the old address. Without a recorded
+    override the next run files it as a second store; with one, the
+    override layer rewrites it before it is ever written. A correction
+    that leaves the uid alone needs no record — the next geocode simply
+    makes it again.
+    """
+    if manual.append_override(
+        row["uid"],
+        {"street": resolution.street, "city": resolution.city,
+         "postal": resolution.postal or ""},
+        note=f"census: {row['street']}, {row['city']} -> "
+             f"{resolution.street}, {resolution.city}",
+    ):
+        stats.recorded.append(row["uid"])
 
 
 def run_geocode(
@@ -183,20 +204,30 @@ def run_geocode(
 
         new_uid = make_uid(row["brand"], resolution.street, resolution.city, row["state"])
         if new_uid != row["uid"] and new_uid in taken:
-            log.warning(
-                "%s: '%s, %s' now matches '%s, %s' — same store twice in the "
-                "locator. Left as-is for a human to drop.",
+            # One brand, one canonical address, so one store — either the
+            # locator lists it twice, or a scrape re-published the address
+            # a previous run already corrected. Folding the two is right
+            # in both readings; leaving them apart doubles the store.
+            log.info(
+                "%s: '%s, %s' resolves to '%s, %s', which another row already "
+                "holds — folded into it.",
                 row["brand"], row["street"], row["city"],
                 resolution.street, resolution.city,
             )
             stats.collisions.append(row["uid"])
-            keep_point(row["uid"])
+            if not dry_run:
+                db.merge_into(conn, row["uid"], new_uid)
+                taken.discard(row["uid"])
+                _record(stats, row, resolution)
+            keep_point(new_uid if not dry_run else row["uid"])
             continue
         if dry_run:
             keep_point(row["uid"])
         else:
             db.rekey_location(conn, row["uid"], new_uid,
                               resolution.street, resolution.city, resolution.postal)
+            if new_uid != row["uid"]:
+                _record(stats, row, resolution)
             taken.discard(row["uid"])
             taken.add(new_uid)
             keep_point(new_uid)

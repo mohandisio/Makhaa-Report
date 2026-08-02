@@ -323,8 +323,8 @@ def render_geocode_summary(stats) -> None:
     console.print(f"{stats.total} addresses: " + ", ".join(parts))
     if stats.collisions:
         console.print(
-            f"[yellow]{len(stats.collisions)} rows now duplicate another "
-            f"address and were left as-is[/]"
+            f"[yellow]{len(stats.collisions)} rows resolved onto an address "
+            f"another row already held and were folded into it[/]"
         )
     if stats.verified:
         verified = ", ".join(f"{n} by {src}" for src, n in sorted(stats.verified.items()))
@@ -332,6 +332,11 @@ def render_geocode_summary(stats) -> None:
     if stats.unverified:
         console.print(
             f"[red]{len(stats.unverified)} addresses no source recognises[/]"
+        )
+    if stats.recorded:
+        console.print(
+            f"[dim]{len(stats.recorded)} corrections recorded in overrides.csv "
+            f"so the next scrape keeps them[/dim]"
         )
     if stats.filled:
         filled = ", ".join(f"{n} from {src}" for src, n in sorted(stats.filled.items()))

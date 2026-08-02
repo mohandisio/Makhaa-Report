@@ -185,11 +185,11 @@ def test_unit_is_stripped_before_the_lookup_and_restored_after(conn):
         "1561 Lee Rd Ste 102"
 
 
-def test_two_rows_collapsing_to_one_address_are_left_alone(conn):
+def test_two_rows_collapsing_to_one_address_are_folded(conn):
     # One store filed under a borough and under the city. The two hash
-    # differently now, but Census resolves both to the same address, so
-    # correcting the first would land it on top of the second. That is a
-    # duplicate for a human to drop, not a row to overwrite.
+    # differently, but Census resolves both to the same address — one
+    # brand at one canonical address is one store, so they fold together
+    # rather than standing as two.
     _store(conn, street="142 West 34th St", city="Manhattan", state="NY", postal="10001")
     _store(conn, street="142 W 34th St", city="New York", state="NY", postal="10001")
     post = _responder({
@@ -200,7 +200,11 @@ def test_two_rows_collapsing_to_one_address_are_left_alone(conn):
     stats = _run(conn, post=post)
 
     assert len(stats.collisions) == 1
-    assert conn.execute("SELECT COUNT(*) FROM locations").fetchone()[0] == 2
+    assert conn.execute("SELECT COUNT(*) FROM locations").fetchone()[0] == 1
+    assert conn.execute(
+        "SELECT COUNT(*) FROM snapshots s WHERE NOT EXISTS "
+        "(SELECT 1 FROM locations l WHERE l.uid = s.uid)"
+    ).fetchone()[0] == 0
 
 
 def test_second_run_asks_the_service_nothing(conn):
