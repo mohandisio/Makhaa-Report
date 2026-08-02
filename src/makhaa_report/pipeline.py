@@ -6,7 +6,7 @@ import sqlite3
 from . import db, export, manual, registry
 from .fetch import Fetch
 from .models import BrandResult, Location, RawLocation, RunStats, utcnow_iso
-from .normalize import to_location
+from .normalize import make_uid, to_location
 from .scrapers import SCRAPERS
 
 log = logging.getLogger("makhaa")
@@ -126,10 +126,30 @@ def run_scrape(
     manual.apply_overrides(locations, now)
 
     # 8. Write phase — one transaction: snapshot then upsert per row.
+    # A hand correction may move the address itself, which upsert_location
+    # will not do: street and city feed the uid, so a scrape is not allowed
+    # to rewrite them. An override is, and rekey_location carries the row
+    # and its snapshots over to the uid the corrected address hashes to.
     with conn:
+        taken = {r[0] for r in conn.execute("SELECT uid FROM locations")}
         for loc in locations.values():
             db.insert_snapshot(conn, stats.run_id, loc.uid, now, loc.status, loc.fragment)
+            if loc.is_manual:
+                corrected = make_uid(loc.brand, loc.street, loc.city, loc.state)
+                if corrected != loc.uid and corrected in taken:
+                    log.warning(
+                        "%s: corrected address '%s, %s' already exists as another "
+                        "row — correction not applied; one of them is a duplicate.",
+                        loc.brand, loc.street, loc.city,
+                    )
+                else:
+                    db.rekey_location(conn, loc.uid, corrected,
+                                      loc.street, loc.city, loc.postal)
+                    taken.discard(loc.uid)
+                    taken.add(corrected)
+                    loc.uid = corrected
             db.upsert_location(conn, loc)
+            taken.add(loc.uid)
 
     # 9. Close run + mirror to CSV.
     stats.total_rows = len(locations)
