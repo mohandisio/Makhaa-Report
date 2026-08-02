@@ -47,9 +47,6 @@ class Location:
     lon: float | None
     geocode_source: str | None  # one of GEOCODE_SOURCES
     geocode_flagged: bool
-    county: str | None
-    tract: str | None
-    cbsa: str | None
     status: str
     status_note: str
     phone: str | None

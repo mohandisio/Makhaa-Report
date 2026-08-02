@@ -238,9 +238,6 @@ def to_location(raw: RawLocation, now_iso: str, *, is_manual: bool = False) -> L
             else None
         ),
         geocode_flagged=False,
-        county=None,
-        tract=None,
-        cbsa=None,
         status=normalize_status(raw.status),
         status_note=raw.status_note.strip(),
         phone=raw.phone,

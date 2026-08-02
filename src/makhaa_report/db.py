@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS locations (
     lat REAL, lon REAL,
     geocode_source TEXT CHECK (geocode_source IN ({_GEOSRC_LIST})),
     geocode_flagged INTEGER NOT NULL DEFAULT 0,
-    county TEXT, tract TEXT, cbsa TEXT,
     status TEXT NOT NULL DEFAULT 'unknown' CHECK (status IN ({_STATUS_LIST})),
     status_note TEXT, phone TEXT, hours TEXT,
     source_url TEXT, is_manual INTEGER NOT NULL DEFAULT 0,
@@ -81,6 +80,11 @@ _UPSERT = (
                           THEN excluded.geocode_source ELSE geocode_source END"""
 )
 
+# Columns an older database may still carry. CREATE TABLE IF NOT EXISTS
+# leaves an existing table alone, so dropping a column from _DDL is not
+# enough on its own.
+_RETIRED_LOCATION_COLS = ("county", "tract", "cbsa")
+
 # Canonical row order for exports — keeps weekly git diffs readable.
 _DUMP_ORDER = {
     "locations": "brand, state, city, street",
@@ -97,7 +101,16 @@ def connect(path: Path = config.DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(_DDL)
+    _drop_retired_columns(conn)
     return conn
+
+
+def _drop_retired_columns(conn: sqlite3.Connection) -> None:
+    present = {r["name"] for r in conn.execute("PRAGMA table_info(locations)")}
+    for column in _RETIRED_LOCATION_COLS:
+        if column in present:
+            conn.execute(f"ALTER TABLE locations DROP COLUMN {column}")
+    conn.commit()
 
 
 def sync_registry(conn: sqlite3.Connection, brands: tuple[Brand, ...],
