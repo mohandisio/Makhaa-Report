@@ -257,6 +257,23 @@ def rekey_location(conn: sqlite3.Connection, old_uid: str, new_uid: str,
         conn.execute("UPDATE snapshots SET uid=? WHERE uid=?", (new_uid, old_uid))
 
 
+def merge_into(conn: sqlite3.Connection, old_uid: str, new_uid: str) -> None:
+    """Fold a corrected row onto the uid its address already belongs to.
+
+    A correction re-keys a row, so the second time the same correction is
+    applied the destination uid is already in the table — from the run
+    that applied it first. That is the same store, not a duplicate, so
+    the history moves across and the stale row goes. Snapshots already
+    recorded under the destination for a run win, since a run observed
+    the store once.
+    """
+    if old_uid == new_uid:
+        return
+    conn.execute("UPDATE OR IGNORE snapshots SET uid=? WHERE uid=?", (new_uid, old_uid))
+    conn.execute("DELETE FROM snapshots WHERE uid=?", (old_uid,))
+    conn.execute("DELETE FROM locations WHERE uid=?", (old_uid,))
+
+
 def set_coordinates(conn: sqlite3.Connection, uid: str, lat: float, lon: float,
                     source: str) -> None:
     conn.execute(

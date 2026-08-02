@@ -159,17 +159,18 @@ def run_scrape(
             if loc.is_manual:
                 corrected = make_uid(loc.brand, loc.street, loc.city, loc.state)
                 if corrected != loc.uid and corrected in taken:
-                    log.warning(
-                        "%s: corrected address '%s, %s' already exists as another "
-                        "row — correction not applied; one of them is a duplicate.",
-                        loc.brand, loc.street, loc.city,
-                    )
+                    # Applied before: the destination already holds this
+                    # store, because a previous run moved it there. Same
+                    # brand and same address is the same store, so adopt
+                    # that uid — inserting the old one instead would
+                    # collide on UNIQUE (brand, street, city, state).
+                    db.merge_into(conn, loc.uid, corrected)
                 else:
                     db.rekey_location(conn, loc.uid, corrected,
                                       loc.street, loc.city, loc.postal)
-                    taken.discard(loc.uid)
-                    taken.add(corrected)
-                    loc.uid = corrected
+                taken.discard(loc.uid)
+                taken.add(corrected)
+                loc.uid = corrected
             db.upsert_location(conn, loc)
             taken.add(loc.uid)
 

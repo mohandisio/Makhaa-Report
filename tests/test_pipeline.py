@@ -188,3 +188,41 @@ def test_manual_entry_for_an_unknown_store_is_added(conn, manual_csv, monkeypatc
 
     assert len(rows) == 2
     assert {r["city"] for r in rows} == {"Oakland", "Fresno"}
+
+
+def test_an_override_correction_survives_a_second_scrape(conn, manual_csv, monkeypatch, tmp_path):
+    """Re-applying the same override must not duplicate the store.
+
+    An override patches the fields of a row but leaves it filed under the
+    uid the scraped address hashed to. The run that first applies it moves
+    the row to the corrected uid; every run after that finds that uid
+    already taken — by this same store — and has to adopt it. Inserting
+    the old uid instead collides on UNIQUE (brand, street, city, state).
+    """
+    monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: [SCRAPED])
+    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
+    scraped_uid = conn.execute(
+        "SELECT uid FROM locations WHERE brand='haraz'"
+    ).fetchone()["uid"]
+
+    columns = ("action", "uid", "brand", *manual.MANUAL_FIELDS, "note")
+    cells = {"action": "patch", "uid": scraped_uid, "street": "123 Grand Blvd",
+             "city": "Piedmont", "postal": "94611", "note": "typo"}
+    (tmp_path / "overrides.csv").write_text(
+        ",".join(columns) + "\n"
+        + ",".join(cells.get(c, "") for c in columns) + "\n"
+    )
+
+    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
+    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
+
+    rows = conn.execute(
+        "SELECT uid, street, city FROM locations WHERE brand='haraz'"
+    ).fetchall()
+    assert len(rows) == 1, "the override duplicated the store on re-scrape"
+    assert (rows[0]["street"], rows[0]["city"]) == ("123 Grand Blvd", "Piedmont")
+    orphans = conn.execute(
+        "SELECT COUNT(*) FROM snapshots s WHERE NOT EXISTS "
+        "(SELECT 1 FROM locations l WHERE l.uid = s.uid)"
+    ).fetchone()[0]
+    assert orphans == 0
