@@ -148,8 +148,16 @@ def main(argv: list[str] | None = None) -> int:
             console.print(f"[dim]wrote[/] {path}")
         return 0
 
+    if args.command == "report":
+        from pathlib import Path
+
+        from .report import write_report
+
+        path = write_report(db.connect(), Path(args.out) if args.out else None)
+        console.print(f"[dim]wrote[/] {path}")
+        return 0
+
     not_implemented = {
-        "report": "generate the HTML report",
         "diff": "compare two runs",
     }
     console.print(
