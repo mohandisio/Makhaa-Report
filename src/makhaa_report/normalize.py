@@ -242,6 +242,19 @@ def split_unit(street: str) -> tuple[str, str]:
             continue
         if token.startswith("#") or token.strip(".,").casefold() in _UNIT_WORDS:
             return " ".join(tokens[:i]).strip(" ,"), " ".join(tokens[i:])
+
+    # A suite written as a bare letter, which several locators do:
+    # "6311 Stadium Dr B". Census answers those Non_Exact and matches the
+    # street without it, so leaving it on costs the row its verification.
+    # Two things must hold before cutting. A directional is not a suite —
+    # "3005 Lyndale Ave S" is a street. And a street keeps its name as
+    # well as its type, so "123 Avenue A" is left whole: that letter is
+    # the name.
+    if len(tokens) >= 4:
+        last = tokens[-1].strip(".,")
+        if (len(last) == 1 and last.isalpha()
+                and last.casefold() not in _DIRECTIONALS):
+            return " ".join(tokens[:-1]).strip(" ,"), tokens[-1]
     return street.strip(), ""
 
 

@@ -38,6 +38,11 @@ def batch() -> dict[str, geo.Match]:
     # The comma belongs to the separator, not to the street.
     ("4100 W Willow Knolls, Suite C2", ("4100 W Willow Knolls", "Suite C2")),
     ("1901 Manhattan Blvd Bldg B, Suite 100", ("1901 Manhattan Blvd", "Bldg B, Suite 100")),
+    # A suite written as a bare letter, with no marker to cut on.
+    ("6311 Stadium Dr B", ("6311 Stadium Dr", "B")),
+    ("8320 University Executive Park Dr B", ("8320 University Executive Park Dr", "B")),
+    ("3441 South Blvd C", ("3441 South Blvd", "C")),
+    ("1950 Market St b", ("1950 Market St", "b")),
 ])
 def test_split_unit_separates_the_unit(street, expected):
     assert split_unit(street) == expected
@@ -45,11 +50,15 @@ def test_split_unit_separates_the_unit(street, expected):
 
 @pytest.mark.parametrize("street", [
     "2138 Caton Ave",
-    "1529 US-14 W",
     "725 Fulton St.",
     "285 South Broadway, Hicksville",
-    # A bare suite letter carries no marker; cutting on it would be a guess.
-    "6311 Stadium Dr B",
+    # Trailing directionals are part of the street, not suites.
+    "1529 US-14 W",
+    "3005 Lyndale Ave S",
+    "229 E Commonwealth Ave E",
+    "3 Little Canada Rd E",
+    # The letter IS the street name here; a street keeps a name and a type.
+    "123 Avenue A",
 ])
 def test_split_unit_leaves_a_unitless_street_alone(street):
     assert split_unit(street) == (street, "")
