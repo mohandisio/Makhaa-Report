@@ -52,7 +52,7 @@ def brand_table(conn: sqlite3.Connection) -> list[dict]:
     """Per-brand league table, busiest first. The display-name tiebreak keeps
     the order — and therefore the color assignment — deterministic."""
     rows = conn.execute(
-        """SELECT l.brand AS slug, b.display_name,
+        """SELECT l.brand AS slug, b.display_name, b.franchises,
                   COUNT(*) AS total,
                   SUM(l.status = 'open') AS open,
                   SUM(l.status = 'coming_soon') AS coming_soon,
@@ -90,6 +90,78 @@ def status_counts(conn: sqlite3.Connection) -> list[dict]:
     return [{"status": s, "total": by_status[s]} for s in STATUSES if s in by_status]
 
 
+def top_cities(conn: sqlite3.Connection, limit: int = 15) -> list[dict]:
+    rows = conn.execute(
+        """SELECT city || ', ' || state AS label, COUNT(*) AS total,
+                  COUNT(DISTINCT brand) AS brands
+           FROM locations GROUP BY city, state
+           ORDER BY total DESC, city ASC LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def city_diversity(conn: sqlite3.Connection, limit: int = 15) -> list[dict]:
+    """Cities ranked by distinct brands — the multi-brand hubs."""
+    rows = conn.execute(
+        """SELECT city || ', ' || state AS label,
+                  COUNT(DISTINCT brand) AS brands, COUNT(*) AS total
+           FROM locations GROUP BY city, state
+           ORDER BY brands DESC, total DESC, city ASC LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def coming_soon_by_state(conn: sqlite3.Connection) -> list[dict]:
+    """Announced openings as (state, brand) rows; the page stacks them."""
+    rows = conn.execute(
+        """SELECT l.state, l.brand, b.display_name AS brand_name, COUNT(*) AS total
+           FROM locations l JOIN brands b ON b.slug = l.brand
+           WHERE l.status = 'coming_soon'
+           GROUP BY l.state, l.brand ORDER BY l.state, l.brand"""
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def market_concentration(conn: sqlite3.Connection, min_shops: int = 5) -> list[dict]:
+    """Per state (with min_shops+), the leading brand and its share of the
+    state's shops. A tie keeps the alphabetically-first brand."""
+    rows = conn.execute(
+        """WITH counts AS (
+             SELECT state, brand, COUNT(*) AS n FROM locations GROUP BY state, brand
+           ), totals AS (
+             SELECT state, SUM(n) AS total FROM counts GROUP BY state
+           )
+           SELECT c.state, b.display_name AS leader, c.n AS leader_shops, t.total
+           FROM counts c
+           JOIN totals t ON t.state = c.state
+           JOIN brands b ON b.slug = c.brand
+           WHERE t.total >= ?
+             AND c.n = (SELECT MAX(n) FROM counts c2 WHERE c2.state = c.state)
+           ORDER BY CAST(c.n AS REAL) / t.total DESC, c.state, b.display_name""",
+        (min_shops,),
+    ).fetchall()
+    seen: set[str] = set()
+    out = []
+    for r in rows:
+        if r["state"] in seen:
+            continue
+        seen.add(r["state"])
+        d = dict(r)
+        d["share"] = round(d["leader_shops"] / d["total"], 3)
+        out.append(d)
+    return out
+
+
+def data_as_of(conn: sqlite3.Connection) -> str | None:
+    """When the data itself last changed: the newest scrape run."""
+    row = conn.execute(
+        "SELECT MAX(COALESCE(finished_at, started_at)) FROM runs"
+    ).fetchone()
+    return row[0]
+
+
 def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> dict:
     """Everything the template needs. `payload` is the subset the page's
     JavaScript reads; the rest renders server-side."""
@@ -103,6 +175,7 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
               "lat", "lon", "status", "phone", "hours")
     return {
         "generated_at": generated_at or utcnow_iso(),
+        "data_as_of": data_as_of(conn),
         "headline": headline_stats(conn),
         "brands": brands,
         "states": state_counts(conn),
@@ -113,6 +186,10 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
             "brand_colors": colors,
             "states": state_counts(conn),
             "statuses": statuses,
+            "top_cities": top_cities(conn),
+            "city_diversity": city_diversity(conn),
+            "coming_soon": coming_soon_by_state(conn),
+            "concentration": market_concentration(conn),
         },
     }
 

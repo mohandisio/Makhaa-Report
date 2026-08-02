@@ -6,7 +6,7 @@ import re
 import pytest
 
 from makhaa_report import db, report
-from makhaa_report.models import Brand, Location
+from makhaa_report.models import Brand, Location, RunStats
 
 _BRANDS = (
     Brand(slug="alpha", display_name="Alpha Coffee", locator_url="https://a.test",
@@ -107,6 +107,43 @@ def test_status_counts_vocabulary_order(conn):
     counts = report.status_counts(conn)
     assert [c["status"] for c in counts] == ["coming_soon", "open", "closed_permanently"]
     assert counts[1]["total"] == 4
+
+
+def test_top_cities(conn):
+    cities = report.top_cities(conn)
+    assert cities[0] == {"label": "Chicago, IL", "total": 2, "brands": 2}
+    assert cities[1] == {"label": "Dearborn, MI", "total": 2, "brands": 1}
+
+
+def test_city_diversity_ranks_brands_first(conn):
+    diverse = report.city_diversity(conn)
+    assert diverse[0]["label"] == "Chicago, IL"
+    assert diverse[0]["brands"] == 2
+
+
+def test_coming_soon_by_state(conn):
+    rows = report.coming_soon_by_state(conn)
+    assert rows == [{"state": "IL", "brand": "alpha",
+                     "brand_name": "Alpha Coffee", "total": 1}]
+
+
+def test_market_concentration(conn):
+    conc = report.market_concentration(conn, min_shops=2)
+    assert [c["state"] for c in conc] == ["MI", "IL"]  # by share, descending
+    assert conc[0] == {"state": "MI", "leader": "Alpha Coffee",
+                       "leader_shops": 2, "total": 2, "share": 1.0}
+    assert conc[1]["share"] == 0.5  # tie in IL keeps the first brand by name
+    assert conc[1]["leader"] == "Alpha Coffee"
+    assert report.market_concentration(conn, min_shops=5) == []
+
+
+def test_data_as_of(conn):
+    assert report.data_as_of(conn) is None  # no runs yet
+    run1 = db.start_run(conn, "2026-08-01T00:00:00Z")
+    db.finish_run(conn, RunStats(run_id=run1, total_rows=6), "2026-08-01T01:00:00Z")
+    run2 = db.start_run(conn, "2026-08-08T00:00:00Z")  # unfinished run counts too
+    assert run2 > run1
+    assert report.data_as_of(conn) == "2026-08-08T00:00:00Z"
 
 
 def test_context_is_json_serializable(conn):

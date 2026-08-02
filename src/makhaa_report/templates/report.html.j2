@@ -36,6 +36,10 @@
   .swatch { display: inline-block; width: .7em; height: .7em; border-radius: 50%;
             margin-right: .45em; }
   .note { color: var(--muted); font-size: .85rem; }
+  .badge { background: var(--accent); color: #fff; border-radius: 999px;
+           font-size: .7rem; padding: .15rem .6rem; vertical-align: middle;
+           text-transform: uppercase; letter-spacing: .04em; }
+  .about p { max-width: 68ch; }
   footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; }
 </style>
 </head>
@@ -44,7 +48,9 @@
 <header>
   <h1>Yemeni coffee shops in the US</h1>
   <p class="generated">A census of Yemeni coffee chains, scraped from each brand's own
-  store locator. Generated {{ generated_at }}.</p>
+  store locator.
+  {% if data_as_of %}Data last updated <b>{{ data_as_of[:10] }}</b>.{% endif %}
+  Page generated {{ generated_at }}.</p>
   <div class="tiles">
     <div class="tile"><b>{{ headline.open }}</b><span>open now</span></div>
     <div class="tile"><b>{{ headline.coming_soon }}</b><span>coming soon</span></div>
@@ -70,6 +76,7 @@
 <section>
   <h2>The brands</h2>
   <div class="chart-box"><canvas id="brand-chart"></canvas></div>
+  <div class="chart-box" style="height: 380px"><canvas id="footprint-chart"></canvas></div>
   <div class="chart-box">
     <table>
       <thead><tr><th>Brand</th><th class="num">Shops</th><th class="num">Open</th>
@@ -95,6 +102,40 @@
     <div class="chart-box"><canvas id="state-chart"></canvas></div>
     <div class="chart-box"><canvas id="status-chart"></canvas></div>
   </div>
+  <div class="chart-box" style="height: 340px"><canvas id="concentration-chart"></canvas></div>
+</section>
+
+<section>
+  <h2>The cities</h2>
+  <div class="charts-row">
+    <div class="chart-box"><canvas id="cities-chart"></canvas></div>
+    <div class="chart-box"><canvas id="diversity-chart"></canvas></div>
+  </div>
+</section>
+
+<section>
+  <h2>Growth over time <span class="badge">Historical data coming soon</span></h2>
+  <p class="note">The census runs weekly. As snapshots accumulate, this section
+  will chart the store count over time and list newly opened shops run by run.
+  For now, the announced openings show where the wave is heading next.</p>
+  <div class="chart-box" style="height: 340px"><canvas id="coming-soon-chart"></canvas></div>
+</section>
+
+<section class="about">
+  <h2>About this data</h2>
+  <p>Yemeni coffee houses — serving qahwa, qishr, adeni chai and honeycomb
+  bread — have been opening across the US at a remarkable pace in the last few
+  years. This project tracks that wave as a census: every location of every
+  chain we know about, in one place.</p>
+  <p>The data is captured directly from each brand's own public store locator,
+  so the brands themselves are the source of record. Addresses are normalized,
+  deduplicated, and geocoded against the US Census and OpenStreetMap Nominatim
+  geocoders; the handful of stores without a working locator are curated by
+  hand. Only what this page displays is published — the underlying dataset
+  stays private.</p>
+  <p>Next up: weekly snapshots build a history, turning this page from one
+  frame into a time-lapse — store counts over time, openings per month, and
+  how each brand's footprint spreads.</p>
 </section>
 
 <footer>Data comes from each brand's public store locator; positions from the
@@ -198,6 +239,111 @@ new Chart(document.getElementById("state-chart"), {
   options: { maintainAspectRatio: false,
              plugins: { title: { display: true, text: "Shops per state" } } },
 });
+
+new Chart(document.getElementById("footprint-chart"), {
+  type: "scatter",
+  data: {
+    datasets: [true, false].map(isFranchise => ({
+      label: isFranchise ? "Franchise" : "Independent",
+      data: DATA.brands.filter(b => Boolean(b.franchises) === isFranchise)
+                       .map(b => ({ x: b.total, y: b.states, name: b.display_name })),
+      backgroundColor: isFranchise ? "#D55E00" : "#0072B2",
+      pointRadius: 6, pointHoverRadius: 8,
+    })),
+  },
+  options: {
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: "bottom" },
+      title: { display: true, text: "Brand footprint: shops vs states covered" },
+      tooltip: { callbacks: { label: ctx =>
+        `${ctx.raw.name}: ${ctx.raw.x} shops in ${ctx.raw.y} state${ctx.raw.y > 1 ? "s" : ""}` } },
+    },
+    scales: { x: { title: { display: true, text: "shops" } },
+              y: { title: { display: true, text: "states" }, ticks: { precision: 0 } } },
+  },
+});
+
+new Chart(document.getElementById("concentration-chart"), {
+  type: "bar",
+  data: {
+    labels: DATA.concentration.map(c => c.state),
+    datasets: [{ data: DATA.concentration.map(c => c.share),
+                 backgroundColor: DATA.concentration.map(c => {
+                   const brand = DATA.brands.find(b => b.display_name === c.leader);
+                   return brand ? DATA.brand_colors[brand.slug] : "#9aa0a6";
+                 }) }],
+  },
+  options: {
+    maintainAspectRatio: false,
+    plugins: {
+      title: { display: true, text: "Leading brand's share of each state (5+ shops)" },
+      tooltip: { callbacks: { label: ctx => {
+        const c = DATA.concentration[ctx.dataIndex];
+        return `${c.leader}: ${c.leader_shops} of ${c.total} shops`;
+      } } },
+    },
+    scales: { y: { min: 0, max: 1, ticks: { format: { style: "percent" } } } },
+  },
+});
+
+new Chart(document.getElementById("cities-chart"), {
+  type: "bar",
+  data: {
+    labels: DATA.top_cities.map(c => c.label),
+    datasets: [{ data: DATA.top_cities.map(c => c.total), backgroundColor: "#9a3412" }],
+  },
+  options: { indexAxis: "y", maintainAspectRatio: false,
+             plugins: { title: { display: true, text: "Most shops" } } },
+});
+
+new Chart(document.getElementById("diversity-chart"), {
+  type: "bar",
+  data: {
+    labels: DATA.city_diversity.map(c => c.label),
+    datasets: [{ data: DATA.city_diversity.map(c => c.brands), backgroundColor: "#0072B2" }],
+  },
+  options: {
+    indexAxis: "y", maintainAspectRatio: false,
+    plugins: {
+      title: { display: true, text: "Most distinct brands" },
+      tooltip: { callbacks: { label: ctx => {
+        const c = DATA.city_diversity[ctx.dataIndex];
+        return `${c.brands} brands, ${c.total} shops`;
+      } } },
+    },
+    scales: { x: { ticks: { precision: 0 } } },
+  },
+});
+
+{
+  const states = [...new Set(DATA.coming_soon.map(r => r.state))];
+  states.sort((a, b) =>
+    DATA.coming_soon.filter(r => r.state === b).reduce((n, r) => n + r.total, 0) -
+    DATA.coming_soon.filter(r => r.state === a).reduce((n, r) => n + r.total, 0));
+  const brands = [...new Set(DATA.coming_soon.map(r => r.brand))];
+  new Chart(document.getElementById("coming-soon-chart"), {
+    type: "bar",
+    data: {
+      labels: states,
+      datasets: brands.map(brand => {
+        const rows = DATA.coming_soon.filter(r => r.brand === brand);
+        return {
+          label: rows[0].brand_name,
+          data: states.map(s => rows.find(r => r.state === s)?.total ?? 0),
+          backgroundColor: DATA.brand_colors[brand],
+        };
+      }),
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: "bottom" },
+                 title: { display: true, text: "Announced openings by state" } },
+      scales: { x: { stacked: true },
+                y: { stacked: true, ticks: { precision: 0 } } },
+    },
+  });
+}
 
 const STATUS_COLORS = { coming_soon: "#D55E00", open: "#009E73", relocating: "#CC79A7",
                         closed_permanently: "#9aa0a6", unknown: "#F0E442" };
