@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from makhaa_report import db, geo, geocode
+from makhaa_report import db, geo, geocode, pipeline
 from makhaa_report.models import RawLocation, utcnow_iso
 from makhaa_report.normalize import make_uid, to_location
 
@@ -126,17 +126,34 @@ def test_an_address_already_canonical_is_unchanged():
 
 # --- run_geocode --------------------------------------------------------
 
-def test_adopting_moves_the_row_and_its_snapshots(conn):
+def test_a_suffix_correction_keeps_the_uid(conn):
+    # "Alafaya Trail" and "Alafaya Trl" hash the same, so adopting the
+    # canonical spelling rewrites the row without moving it. This is what
+    # stops the next scrape re-inserting the uncorrected address.
     old_uid = _store(conn)
     post = _responder({"1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826"})
 
     _run(conn, post=post)
 
-    new_uid = make_uid("haraz", "1737 N Alafaya Trl", "Orlando", "FL")
+    rows = conn.execute("SELECT uid, street FROM locations").fetchall()
+    assert len(rows) == 1
+    assert (rows[0]["uid"], rows[0]["street"]) == (old_uid, "1737 N Alafaya Trl")
+
+
+def test_adopting_moves_the_row_and_its_snapshots(conn):
+    # A word split is beyond any abbreviation rule, so this correction
+    # really does re-key — and the row must travel whole.
+    old_uid = _store(conn, street="606 Broadhollow Rd", city="Melville",
+                     state="NY", postal="11747")
+    post = _responder({"606 Broadhollow Rd": "606 BROAD HOLLOW RD, MELVILLE, NY, 11747"})
+
+    _run(conn, post=post)
+
+    new_uid = make_uid("haraz", "606 Broad Hollow Rd", "Melville", "NY")
     assert new_uid != old_uid
     rows = conn.execute("SELECT uid, street FROM locations").fetchall()
     assert len(rows) == 1, "the store must not be duplicated by its correction"
-    assert (rows[0]["uid"], rows[0]["street"]) == (new_uid, "1737 N Alafaya Trl")
+    assert (rows[0]["uid"], rows[0]["street"]) == (new_uid, "606 Broad Hollow Rd")
     # History follows the row rather than being orphaned.
     assert conn.execute("SELECT uid FROM snapshots").fetchone()["uid"] == new_uid
 
@@ -213,6 +230,99 @@ def test_change_records_carry_before_and_after(conn):
     assert not change.cosmetic
 
 
+@pytest.mark.parametrize("scraped, canonical", [
+    ("1737 N Alafaya Trail", "1737 N ALAFAYA TRL"),
+    ("43780 Parkhurst Plaza", "43780 PARKHURST PLZ"),
+    ("222 E Farm To Market 544", "222 E FM 544"),
+    ("356 Troy-Schenectady Rd", "356 TROY SCHENECTADY RD"),
+])
+def test_a_rescrape_does_not_resurrect_the_uncorrected_address(
+    conn, tmp_path, monkeypatch, scraped, canonical
+):
+    """The bug this guards: geocode corrects an address, the weekly scrape
+    publishes the original spelling again, and the store becomes two rows.
+    """
+    manual = tmp_path / "manual"
+    manual.mkdir()
+    (manual / "mohka_house.csv").write_text(
+        "name,street,city,state,postal,status,status_note,lat,lon,phone,hours,source_url\n"
+        f"Mohka House,{scraped},Latham,NY,12110,open,,,,,,\n"
+    )
+    monkeypatch.setattr("makhaa_report.config.MANUAL_DIR", manual)
+    monkeypatch.setattr("makhaa_report.config.OVERRIDES_PATH", tmp_path / "overrides.csv")
+    monkeypatch.setattr("makhaa_report.config.EXPORT_DIR", tmp_path / "exports")
+
+    def no_fetch(url: str) -> str:
+        raise AssertionError(f"network fetch attempted: {url}")
+
+    pipeline.run_scrape(conn, brands=["mohka_house"], fetch=no_fetch)
+    _run(conn, post=_responder({scraped: f"{canonical}, LATHAM, NY, 12110"}))
+    pipeline.run_scrape(conn, brands=["mohka_house"], fetch=no_fetch)
+
+    rows = conn.execute("SELECT street FROM locations").fetchall()
+    assert len(rows) == 1, f"re-scraping split the store into {len(rows)} rows"
+
+
+def test_an_override_can_correct_the_address_itself(conn, tmp_path, monkeypatch):
+    """upsert_location refuses to move street/city because they feed the
+    uid. A hand correction is exactly the case that must be allowed to.
+    """
+    manual_dir = tmp_path / "manual"
+    manual_dir.mkdir()
+    (manual_dir / "mohka_house.csv").write_text(
+        "name,street,city,state,postal,status,status_note,lat,lon,phone,hours,source_url\n"
+        "Mohka House,285 South Broadway,Long Isand,NY,,open,,,,,,\n"
+    )
+    uid = make_uid("mohka_house", "285 South Broadway", "Long Isand", "NY")
+    overrides = tmp_path / "overrides.csv"
+    overrides.write_text(
+        "action,uid,brand,name,street,city,state,postal,lat,lon,status,"
+        "status_note,phone,hours,note\n"
+        f"patch,{uid},,,285 S Broadway,Hicksville,,11801,40.76223,-73.51674,,,,,typo\n"
+    )
+    monkeypatch.setattr("makhaa_report.config.MANUAL_DIR", manual_dir)
+    monkeypatch.setattr("makhaa_report.config.OVERRIDES_PATH", overrides)
+    monkeypatch.setattr("makhaa_report.config.EXPORT_DIR", tmp_path / "exports")
+
+    def no_fetch(url: str) -> str:
+        raise AssertionError(f"network fetch attempted: {url}")
+
+    pipeline.run_scrape(conn, brands=["mohka_house"], fetch=no_fetch)
+
+    rows = conn.execute("SELECT uid, street, city, postal, lat FROM locations").fetchall()
+    assert len(rows) == 1
+    assert (rows[0]["street"], rows[0]["city"]) == ("285 S Broadway", "Hicksville")
+    assert rows[0]["postal"] == "11801"
+    # The uid follows the corrected address, and its history comes along.
+    assert rows[0]["uid"] == make_uid("mohka_house", "285 S Broadway", "Hicksville", "NY")
+    assert conn.execute("SELECT uid FROM snapshots").fetchone()["uid"] == rows[0]["uid"]
+
+
+def test_connect_rekeys_rows_left_by_an_older_normalizer(tmp_path, monkeypatch):
+    """A uid written before an abbreviation was added must converge.
+
+    Otherwise the next scrape computes the new uid, finds nothing under
+    it, and inserts the store a second time.
+    """
+    monkeypatch.setattr("makhaa_report.config.GEO_DIR", tmp_path / "geo")
+    path = tmp_path / "stale.sqlite"
+    conn = db.connect(path)
+    uid = _store(conn, street="43780 Parkhurst Plaza", city="Ashburn",
+                 state="VA", postal="20147")
+    # Pretend the row was keyed before "plaza" was abbreviated.
+    conn.execute("UPDATE locations SET uid='legacyuid0000000' WHERE uid=?", (uid,))
+    conn.execute("UPDATE snapshots SET uid='legacyuid0000000' WHERE uid=?", (uid,))
+    conn.commit()
+    conn.close()
+
+    conn = db.connect(path)
+
+    rows = conn.execute("SELECT uid FROM locations").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["uid"] == uid
+    assert conn.execute("SELECT uid FROM snapshots").fetchone()["uid"] == uid
+
+
 # --- coordinates --------------------------------------------------------
 
 def test_census_coordinates_land_on_the_corrected_row(conn):
@@ -275,6 +385,21 @@ def test_a_coordinate_outside_the_us_is_flagged_but_kept(conn):
     assert row["geocode_flagged"] == 1
     assert row["lat"] == 33.8915, "kept for review rather than deleted"
     assert len(stats.flagged) == 1
+
+
+def test_a_flag_clears_once_the_row_is_fixed(conn):
+    # A hand-corrected coordinate must not leave the row flagged forever.
+    _store(conn, street="493 Bloomfield Ave", city="Montclair", state="NJ", postal="07042")
+    conn.execute("UPDATE locations SET lat=33.8915, lon=35.5024, geocode_source='locator'")
+    conn.commit()
+    assert _run(conn, post=_responder({})).flagged
+
+    conn.execute("UPDATE locations SET lat=40.81466, lon=-74.21811, geocode_source='manual'")
+    conn.commit()
+    stats = _run(conn, post=_responder({}))
+
+    assert stats.flagged == []
+    assert conn.execute("SELECT geocode_flagged FROM locations").fetchone()[0] == 0
 
 
 @pytest.mark.parametrize("lat, lon, expected", [
