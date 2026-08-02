@@ -33,13 +33,31 @@ _STATE_CODES = set(_STATES.values())
 US_STATE_NAMES = frozenset(_STATES)
 
 # Canonical short forms for the street tokens locators actually vary on.
+# These decide identity, so they have to cover both how a locator writes a
+# street and how a geocoder answers: "Alafaya Trail" and "Alafaya Trl" are
+# one store, and if they hash differently a corrected row comes back as a
+# second store on the next scrape.
 _STREET_ABBREV = {
     "street": "st", "avenue": "ave", "av": "ave", "boulevard": "blvd",
     "road": "rd", "drive": "dr", "lane": "ln", "court": "ct",
     "place": "pl", "parkway": "pkwy", "highway": "hwy", "suite": "ste",
     "north": "n", "south": "s", "east": "e", "west": "w",
     "northeast": "ne", "northwest": "nw", "southeast": "se", "southwest": "sw",
+    # USPS suffix forms a geocoder answers with.
+    "trail": "trl", "plaza": "plz", "circle": "cir", "terrace": "ter",
+    "square": "sq", "freeway": "fwy", "expressway": "expy",
+    "turnpike": "tpke", "center": "ctr", "centre": "ctr", "crossing": "xing",
+    "junction": "jct", "extension": "ext", "heights": "hts", "landing": "lndg",
+    "station": "sta", "village": "vlg", "manor": "mnr", "ridge": "rdg",
 }
+
+# Multi-token names a geocoder collapses. Applied before tokenizing,
+# because no per-token rule can turn "Farm To Market 544" into "FM 544".
+_STREET_PHRASES = ((re.compile(r"\bfarm to market\b"), "fm"),)
+
+# City spellings that mean one place. "St Paul" and "Saint Paul" are the
+# same city, and the uid must not care which the locator used.
+_CITY_ABBREV = {"saint": "st", "mount": "mt", "fort": "ft"}
 
 # Matching is substring-based; "soon"/"opening" checked before "open".
 _OPEN_WORDS = ("open",)
@@ -48,9 +66,19 @@ _SOON_WORDS = ("soon", "opening")
 
 def normalize_street(raw: str) -> str:
     s = raw.casefold().strip()
-    s = re.sub(r"[.,#]", " ", s)
+    # The hyphen is punctuation here: "Troy-Schenectady Rd" and
+    # "Troy Schenectady Rd" are the same road.
+    s = re.sub(r"[.,#-]", " ", s)
+    for pattern, short in _STREET_PHRASES:
+        s = pattern.sub(short, s)
     tokens = [_STREET_ABBREV.get(t, t) for t in s.split()]
     return " ".join(tokens)
+
+
+def normalize_city_key(raw: str) -> str:
+    """The form of a city name used for identity, not for display."""
+    s = re.sub(r"[.,'’-]", " ", raw.casefold())
+    return " ".join(_CITY_ABBREV.get(t, t) for t in s.split())
 
 
 def normalize_state(raw: str) -> str:
@@ -284,7 +312,7 @@ def make_uid(brand: str, street: str, city: str, state: str) -> str:
     # postal deliberately excluded: locators omit/typo ZIPs; street+city+state
     # is the stable identity.
     key = "|".join(
-        (brand, normalize_street(street), city.casefold().strip(), normalize_state(state))
+        (brand, normalize_street(street), normalize_city_key(city), normalize_state(state))
     )
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 

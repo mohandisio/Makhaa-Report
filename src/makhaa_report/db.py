@@ -2,11 +2,14 @@
 
 import dataclasses
 import json
+import logging
 import sqlite3
 from pathlib import Path
 
 from . import config
 from .models import Brand, Exclusion, GEOCODE_SOURCES, Location, RunStats, STATUSES
+
+log = logging.getLogger("makhaa")
 
 _STATUS_LIST = ",".join(f"'{s}'" for s in STATUSES)
 _GEOSRC_LIST = ",".join(f"'{s}'" for s in GEOCODE_SOURCES)
@@ -103,7 +106,49 @@ def connect(path: Path = config.DB_PATH) -> sqlite3.Connection:
     conn.executescript(_DDL)
     _drop_retired_columns(conn)
     _widen_geocode_sources(conn)
+    _rekey_stale_uids(conn)
     return conn
+
+
+def _rekey_stale_uids(conn: sqlite3.Connection) -> None:
+    """Move rows whose uid predates the current normalizer.
+
+    The uid is a hash of the address, so widening an abbreviation re-keys
+    every row that uses it. Left alone, the next scrape would compute the
+    new uid, find no row under it, and insert the store a second time.
+    Recomputing here means a normalizer change converges instead of
+    quietly splitting the census in two.
+    """
+    from .normalize import make_uid
+
+    rows = conn.execute(
+        "SELECT uid, brand, street, city, state FROM locations"
+    ).fetchall()
+    taken = {r["uid"] for r in rows}
+    moved = 0
+    for row in rows:
+        current = make_uid(row["brand"], row["street"], row["city"], row["state"])
+        if current == row["uid"]:
+            continue
+        if current in taken:
+            log.warning(
+                "%s: '%s, %s' now shares an identity with another row — "
+                "left in place; one of them is a duplicate to drop by hand.",
+                row["brand"], row["street"], row["city"],
+            )
+            continue
+        rekey_location(conn, row["uid"], current, row["street"], row["city"],
+                       _postal_of(conn, row["uid"]))
+        taken.discard(row["uid"])
+        taken.add(current)
+        moved += 1
+    if moved:
+        log.info("re-keyed %d rows onto the current normalizer", moved)
+        conn.commit()
+
+
+def _postal_of(conn: sqlite3.Connection, uid: str) -> str | None:
+    return conn.execute("SELECT postal FROM locations WHERE uid=?", (uid,)).fetchone()[0]
 
 
 def _drop_retired_columns(conn: sqlite3.Connection) -> None:
