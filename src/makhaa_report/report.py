@@ -5,8 +5,12 @@ dicts and lists out. The HTML itself lives in templates/report.html.j2.
 """
 
 import sqlite3
+from pathlib import Path
 
-from .models import STATUSES
+from jinja2 import Environment, PackageLoader
+
+from . import config
+from .models import STATUSES, utcnow_iso
 
 # Okabe-Ito palette: colorblind-safe, distinct on a light map background.
 PALETTE = ("#E69F00", "#56B4E9", "#009E73", "#F0E442",
@@ -84,3 +88,39 @@ def status_counts(conn: sqlite3.Connection) -> list[dict]:
         for r in conn.execute("SELECT status, COUNT(*) n FROM locations GROUP BY status")
     }
     return [{"status": s, "total": by_status[s]} for s in STATUSES if s in by_status]
+
+
+def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> dict:
+    """Everything the template needs. `payload` is the subset the page's
+    JavaScript reads; the rest renders server-side."""
+    mapped, unmapped = shop_rows(conn)
+    brands = brand_table(conn)
+    colors = brand_colors(brands)
+    statuses = status_counts(conn)
+    return {
+        "generated_at": generated_at or utcnow_iso(),
+        "headline": headline_stats(conn),
+        "brands": brands,
+        "states": state_counts(conn),
+        "unmapped": unmapped,
+        "payload": {
+            "shops": mapped,
+            "brands": brands,
+            "brand_colors": colors,
+            "states": state_counts(conn),
+            "statuses": statuses,
+        },
+    }
+
+
+def render_report(context: dict) -> str:
+    env = Environment(loader=PackageLoader("makhaa_report"), autoescape=True)
+    return env.get_template("report.html.j2").render(**context)
+
+
+def write_report(conn: sqlite3.Connection, out: Path | None = None,
+                 generated_at: str | None = None) -> Path:
+    out = out or config.REPORT_PATH
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render_report(build_context(conn, generated_at)), encoding="utf-8")
+    return out

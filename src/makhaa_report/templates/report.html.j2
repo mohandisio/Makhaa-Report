@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yemeni coffee shops in the US</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root { --ink: #1f2328; --muted: #656d76; --line: #d8dee4; --accent: #9a3412; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: #fbf9f6;
+         font: 16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem 4rem; }
+  header { padding: 2.5rem 0 1rem; }
+  h1 { margin: 0 0 .25rem; font-size: 1.7rem; }
+  h2 { margin: 2.5rem 0 .75rem; font-size: 1.25rem; }
+  .generated { color: var(--muted); margin: 0; font-size: .85rem; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+           gap: .75rem; margin-top: 1.25rem; }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 8px;
+          padding: .75rem 1rem; }
+  .tile b { display: block; font-size: 1.6rem; color: var(--accent); }
+  .tile span { color: var(--muted); font-size: .8rem; }
+  #map { height: 540px; border: 1px solid var(--line); border-radius: 8px; }
+  .filters { margin: 0 0 .6rem; font-size: .85rem; color: var(--muted); }
+  .filters label { margin-right: 1rem; cursor: pointer; }
+  .chart-box { background: #fff; border: 1px solid var(--line); border-radius: 8px;
+               padding: 1rem; margin-top: 1rem; }
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .charts-row .chart-box { height: 340px; }
+  @media (max-width: 760px) { .charts-row { grid-template-columns: 1fr; } }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .35rem .6rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .swatch { display: inline-block; width: .7em; height: .7em; border-radius: 50%;
+            margin-right: .45em; }
+  .note { color: var(--muted); font-size: .85rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Yemeni coffee shops in the US</h1>
+  <p class="generated">A census of Yemeni coffee chains, scraped from each brand's own
+  store locator. Generated {{ generated_at }}.</p>
+  <div class="tiles">
+    <div class="tile"><b>{{ headline.open }}</b><span>open now</span></div>
+    <div class="tile"><b>{{ headline.coming_soon }}</b><span>coming soon</span></div>
+    <div class="tile"><b>{{ headline.brands }}</b><span>brands</span></div>
+    <div class="tile"><b>{{ headline.states }}</b><span>states</span></div>
+  </div>
+</header>
+
+<section>
+  <h2>Every shop on the map</h2>
+  <div class="filters" id="status-filters">Show:</div>
+  <div id="map"></div>
+  {% if unmapped %}
+  <p class="note">Not on the map (no coordinates yet):
+    {% for shop in unmapped -%}
+      {{ shop.brand_name }} — {{ shop.street }}, {{ shop.city }}, {{ shop.state }}
+      {{- ", " if not loop.last }}
+    {%- endfor %}.
+  </p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>The brands</h2>
+  <div class="chart-box"><canvas id="brand-chart"></canvas></div>
+  <div class="chart-box">
+    <table>
+      <thead><tr><th>Brand</th><th class="num">Shops</th><th class="num">Open</th>
+                 <th class="num">Coming soon</th><th class="num">States</th></tr></thead>
+      <tbody>
+        {% for b in brands %}
+        <tr>
+          <td><span class="swatch" data-brand="{{ b.slug }}"></span>{{ b.display_name }}</td>
+          <td class="num">{{ b.total }}</td>
+          <td class="num">{{ b.open }}</td>
+          <td class="num">{{ b.coming_soon }}</td>
+          <td class="num">{{ b.states }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Where they are</h2>
+  <div class="charts-row">
+    <div class="chart-box"><canvas id="state-chart"></canvas></div>
+    <div class="chart-box"><canvas id="status-chart"></canvas></div>
+  </div>
+</section>
+
+<footer>Data comes from each brand's public store locator; positions from the
+locators themselves or the US Census / Nominatim geocoders.</footer>
+</main>
+
+<script id="report-data" type="application/json">{{ payload | tojson }}</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("report-data").textContent);
+const pretty = s => (s[0].toUpperCase() + s.slice(1)).replace(/_/g, " ");
+
+/* Brand color swatches in the league table. */
+for (const el of document.querySelectorAll(".swatch")) {
+  el.style.background = DATA.brand_colors[el.dataset.brand];
+}
+
+/* ---- Map ---------------------------------------------------------- */
+const map = L.map("map", { scrollWheelZoom: false });
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}).addTo(map);
+
+function popupFor(shop) {
+  const div = document.createElement("div");
+  const add = (text, tag = "div") => {
+    if (!text) return;
+    const el = document.createElement(tag);
+    el.textContent = text;            /* never innerHTML: scraped strings */
+    div.appendChild(el);
+  };
+  add(shop.brand_name, "b");
+  add(`${shop.street}, ${shop.city}, ${shop.state}${shop.postal ? " " + shop.postal : ""}`);
+  if (shop.status !== "open") add(pretty(shop.status));
+  add(shop.phone);
+  add(shop.hours);
+  return div;
+}
+
+const HIDDEN_BY_DEFAULT = new Set(["closed_permanently"]);
+const groups = {};                    /* status -> layerGroup */
+for (const shop of DATA.shops) {
+  const marker = L.circleMarker([shop.lat, shop.lon], {
+    radius: 6, weight: 1, fillOpacity: 0.85,
+    color: "#ffffff", fillColor: DATA.brand_colors[shop.brand],
+  }).bindPopup(popupFor(shop));
+  (groups[shop.status] ??= L.layerGroup()).addLayer(marker);
+}
+
+function refit() {
+  const bounds = L.latLngBounds([]);
+  for (const [status, group] of Object.entries(groups)) {
+    if (!map.hasLayer(group)) continue;
+    group.eachLayer(m => bounds.extend(m.getLatLng()));
+  }
+  if (bounds.isValid()) map.fitBounds(bounds.pad(0.1));
+}
+
+const filters = document.getElementById("status-filters");
+for (const { status, total } of DATA.statuses) {
+  const label = document.createElement("label");
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = !HIDDEN_BY_DEFAULT.has(status);
+  box.addEventListener("change", () => {
+    map[box.checked ? "addLayer" : "removeLayer"](groups[status]);
+    refit();
+  });
+  label.appendChild(box);
+  label.appendChild(document.createTextNode(` ${pretty(status)} (${total})`));
+  filters.appendChild(label);
+  if (box.checked) map.addLayer(groups[status]);
+}
+refit();
+
+/* ---- Charts ------------------------------------------------------- */
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.plugins.legend.display = false;
+
+new Chart(document.getElementById("brand-chart"), {
+  type: "bar",
+  data: {
+    labels: DATA.brands.map(b => b.display_name),
+    datasets: [{ data: DATA.brands.map(b => b.total),
+                 backgroundColor: DATA.brands.map(b => DATA.brand_colors[b.slug]) }],
+  },
+  options: { indexAxis: "y", maintainAspectRatio: false },
+});
+document.getElementById("brand-chart").parentElement.style.height =
+  `${DATA.brands.length * 26 + 60}px`;
+
+new Chart(document.getElementById("state-chart"), {
+  type: "bar",
+  data: {
+    labels: DATA.states.map(s => s.state),
+    datasets: [{ data: DATA.states.map(s => s.total), backgroundColor: "#9a3412" }],
+  },
+  options: { maintainAspectRatio: false,
+             plugins: { title: { display: true, text: "Shops per state" } } },
+});
+
+const STATUS_COLORS = { coming_soon: "#D55E00", open: "#009E73", relocating: "#CC79A7",
+                        closed_permanently: "#9aa0a6", unknown: "#F0E442" };
+new Chart(document.getElementById("status-chart"), {
+  type: "doughnut",
+  data: {
+    labels: DATA.statuses.map(s => pretty(s.status)),
+    datasets: [{ data: DATA.statuses.map(s => s.total),
+                 backgroundColor: DATA.statuses.map(s => STATUS_COLORS[s.status]) }],
+  },
+  options: { maintainAspectRatio: false,
+             plugins: { legend: { display: true, position: "bottom" },
+                        title: { display: true, text: "Status" } } },
+});
+</script>
+</body>
+</html>

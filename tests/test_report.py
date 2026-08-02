@@ -1,5 +1,8 @@
 """Aggregations and rendering for the HTML report."""
 
+import json
+import re
+
 import pytest
 
 from makhaa_report import db, report
@@ -104,3 +107,47 @@ def test_status_counts_vocabulary_order(conn):
     counts = report.status_counts(conn)
     assert [c["status"] for c in counts] == ["coming_soon", "open", "closed_permanently"]
     assert counts[1]["total"] == 4
+
+
+def test_context_is_json_serializable(conn):
+    context = report.build_context(conn, generated_at="2026-08-02T00:00:00Z")
+    assert json.loads(json.dumps(context)) == context
+
+
+FIXED_TS = "2026-08-02T00:00:00Z"
+
+
+def _render(conn, tmp_path):
+    path = report.write_report(conn, tmp_path / "out" / "report.html",
+                               generated_at=FIXED_TS)
+    return path, path.read_text(encoding="utf-8")
+
+
+def test_render_smoke(conn, tmp_path):
+    path, html = _render(conn, tmp_path)
+    assert path.exists()
+    assert html.startswith("<!doctype html>")
+    assert FIXED_TS in html  # injected clock, deterministic output
+    assert "{{" not in html  # no unrendered template residue
+    assert "leaflet@1.9.4" in html and "chart.js@" in html
+
+
+def test_embedded_json_matches_db(conn, tmp_path):
+    _, html = _render(conn, tmp_path)
+    match = re.search(
+        r'<script id="report-data" type="application/json">(.*?)</script>',
+        html, re.DOTALL,
+    )
+    payload = json.loads(match.group(1))
+    assert len(payload["shops"]) == 5  # mapped rows only; ccc1 listed as unmapped
+    assert {b["slug"] for b in payload["brands"]} == {"alpha", "beta", "gamma"}
+    assert "ccc1" not in {s["uid"] for s in payload["shops"]}
+    assert "Gamma Coffee" in html  # ...but the unmapped shop is on the page
+
+
+def test_hostile_field_is_escaped(conn, tmp_path):
+    hostile = "</script><script>alert(1)</script>"
+    conn.execute("UPDATE locations SET hours = ? WHERE uid = 'aaa1'", (hostile,))
+    conn.commit()
+    _, html = _render(conn, tmp_path)
+    assert hostile not in html  # tojson escapes <> so the tag cannot break out
