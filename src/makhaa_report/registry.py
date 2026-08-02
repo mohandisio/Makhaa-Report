@@ -339,8 +339,18 @@ def get_brand(slug: str) -> Brand:
     raise KeyError(f"unknown brand slug: {slug}")
 
 
-def scraped_brands() -> tuple[Brand, ...]:
-    return tuple(b for b in BRANDS if b.method == "scrape")
+def scraped_brands(counts: dict[str, int] | None = None) -> tuple[Brand, ...]:
+    """Brands with a scraper, biggest first.
+
+    Ordered by how many stores each returned last time, so a sweep does
+    the brands that matter most while someone is still watching. Brands
+    never scraped fall back to registry order.
+    """
+    brands = [b for b in BRANDS if b.method == "scrape"]
+    if not counts:
+        return tuple(brands)
+    order = {b.slug: i for i, b in enumerate(BRANDS)}
+    return tuple(sorted(brands, key=lambda b: (-counts.get(b.slug, 0), order[b.slug])))
 
 
 def manual_brands() -> tuple[Brand, ...]:

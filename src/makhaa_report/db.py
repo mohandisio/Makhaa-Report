@@ -159,3 +159,11 @@ def dump_table(conn: sqlite3.Connection, name: str) -> tuple[list[str], list[tup
     cur = conn.execute(f"SELECT * FROM {name} ORDER BY {_DUMP_ORDER[name]}")
     columns = [d[0] for d in cur.description]
     return columns, cur.fetchall()
+
+
+def location_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    """Rows per brand from the last run, used to order the next one."""
+    rows = conn.execute(
+        "SELECT brand, COUNT(*) n FROM locations GROUP BY brand"
+    ).fetchall()
+    return {r["brand"]: r["n"] for r in rows}

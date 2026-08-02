@@ -2,6 +2,8 @@
 
 import logging
 import sqlite3
+from collections import Counter
+from dataclasses import replace
 
 from . import db, export, manual, registry
 from .fetch import Fetch
@@ -51,17 +53,22 @@ def run_scrape(
     # is visible as a NULL in the runs table.
     db.sync_registry(conn, registry.BRANDS, registry.EXCLUSIONS)
     now = utcnow_iso()
+    # Biggest brands first, manual entries last, so the run reads in
+    # order of how much each contributes.
+    ordered = [
+        b for b in (*registry.scraped_brands(db.location_counts(conn)),
+                    *registry.manual_brands())
+        if selected(b.slug)
+    ]
     stats = RunStats(run_id=db.start_run(conn, now))
-    progress.start(
-        stats.run_id, [b.slug for b in registry.BRANDS if selected(b.slug)]
-    )
+    progress.start(stats.run_id, [b.slug for b in ordered])
 
     # 2+3. Scrape each brand; quarantine on error or band drift. A
     # quarantined brand's existing rows are left untouched — stale
     # last_seen is the signal.
     scraped: list[tuple[RawLocation, bool]] = []  # (row, is_manual)
-    for brand in registry.scraped_brands():
-        if not selected(brand.slug):
+    for brand in ordered:
+        if brand.method != "scrape":
             continue
         if brand.slug not in SCRAPERS:
             result = BrandResult(brand.slug, "no_scraper")
@@ -84,7 +91,10 @@ def run_scrape(
                 "no rows written. Re-run with --allow-drift to override.",
                 brand.slug, len(rows), low, high,
             )
-            result = BrandResult(brand.slug, "drift", len(rows), "quarantined, no rows written")
+            result = BrandResult(
+                brand.slug, "drift", len(rows),
+                f"expected {low}-{high}; quarantined, nothing written",
+            )
             stats.results.append(result)
             progress.finish_brand(result)
             continue
@@ -96,8 +106,8 @@ def run_scrape(
     # 4. Manual entries — no drift check; these are the source of truth
     # for the rows they cover.
     manual_rows = [r for r in manual.load_manual_brands() if selected(r.brand)]
-    for brand in registry.manual_brands():
-        if selected(brand.slug):
+    for brand in ordered:
+        if brand.method == "manual":
             count = sum(1 for r in manual_rows if r.brand == brand.slug)
             result = BrandResult(brand.slug, "ok", count, "manual entry")
             stats.results.append(result)
@@ -124,6 +134,17 @@ def run_scrape(
 
     # 7. Overrides last, so a hand correction beats everything.
     manual.apply_overrides(locations, now)
+
+    # Report each brand's real total, which for a scraped brand includes
+    # any manual entries filling gaps its locator leaves.
+    totals = Counter(loc.brand for loc in locations.values())
+    stats.results = [
+        replace(result, rows=totals.get(result.slug, 0))
+        if result.outcome == "ok" else result
+        for result in stats.results
+    ]
+    for result in stats.results:
+        progress.finish_brand(result)
 
     # 8. Write phase — one transaction: snapshot then upsert per row.
     with conn:

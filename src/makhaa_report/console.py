@@ -105,7 +105,6 @@ class ScrapeProgress:
         table = Table(title=title, title_justify="left", header_style="bold")
         table.add_column("Brand")
         table.add_column("Rows", justify="right")
-        table.add_column("Expected", justify="right", style="dim")
         table.add_column("Status")
         table.add_column("Note", style="dim")
 
@@ -121,7 +120,6 @@ class ScrapeProgress:
             table.add_row(
                 brand.display_name,
                 rows,
-                f"{brand.band[0]}-{brand.band[1]}" if brand.method == "scrape" else "-",
                 self._status(slug),
                 result.note if result else "",
                 style="blue" if slug == self._active else None,
