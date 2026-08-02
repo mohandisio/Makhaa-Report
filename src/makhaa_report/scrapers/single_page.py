@@ -490,71 +490,64 @@ SANAA_URL = "https://thesanaacafe.com/locations/"
 def scrape_sanaa_cafe(fetch: Fetch) -> list[RawLocation]:
     """Sana'a Cafe.
 
-    Divi blurb modules in runs of four: a heading, then address, phone
-    and hours. The site sits behind a WAF that always answers in Brotli,
-    which is why it needs the brotli decoder to read at all.
+    One card per store, each field in its own labelled info-row. The page
+    also still carries an older Divi blurb layout listing fewer stores
+    and a stale Sacramento address; the cards are current, so the blurbs
+    are ignored.
 
-    Treat the result as a floor rather than a count. The locator omits
-    stores the press confirms are trading, and it publishes at least one
-    store under another's address, so a second title sharing an address
-    is dropped and logged. Corrections belong in overrides.csv.
+    The site sits behind a WAF that always answers in Brotli, which is
+    why it needs the brotli decoder to read at all.
+
+    Treat the total as a floor rather than a count — the locator omits
+    stores the press confirms are trading.
     """
     soup = BeautifulSoup(fetch(SANAA_URL), "lxml")
     for tag in soup.find_all(["script", "style"]):
         tag.decompose()
 
     rows: list[RawLocation] = []
-    seen: dict[tuple[str, str], str] = {}
-    name = ""
-    pending: dict[str, str] = {}
+    seen: set[tuple[str, str]] = set()
 
-    def flush() -> None:
-        address = split_us_address(pending.get("address", ""))
-        if not name or address is None:
-            return
+    for card in soup.select(".location-card"):
+        fields: dict[str, str] = {}
+        for row in card.select(".info-row"):
+            label = row.find("h4")
+            if label is None:
+                continue
+            body = row.find("div")
+            text = " ".join(body.get_text(" ", strip=True).split()) if body else ""
+            heading_text = label.get_text(strip=True)
+            fields[heading_text.casefold()] = text.removeprefix(heading_text).strip()
+
+        address = split_us_address(fields.get("location", ""))
+        if address is None:
+            log.warning("sanaa_cafe: unparsed address %r", fields.get("location"))
+            continue
         street, city, state, postal = address
         key = (street.casefold(), city.casefold())
         if key in seen:
-            log.warning(
-                "sanaa_cafe: %r publishes the same address as %r — dropping "
-                "the duplicate; correct it in overrides.csv",
-                name, seen[key],
-            )
-            return
-        seen[key] = name
+            continue
+        seen.add(key)
+
+        heading = card.find(["h2", "h3"])
         rows.append(
             RawLocation(
                 brand="sanaa_cafe",
-                name=name,
+                name=heading.get_text(" ", strip=True) if heading else city,
                 street=street,
                 city=city,
                 state=state,
                 postal=postal,
+                # A "Coming Soon" button here sits in the order-button
+                # slot and can mean online ordering is not live yet, so
+                # it is not read as a store status.
                 status="open",
-                phone=pending.get("phone"),
-                hours=pending.get("hours"),
+                phone=fields.get("phone") or None,
+                hours=fields.get("timing") or None,
                 source_url=SANAA_URL,
-                fragment=" | ".join(v for v in (name, *pending.values()) if v),
+                fragment=" ".join(card.get_text(" | ", strip=True).split()),
             )
         )
-
-    for blurb in soup.select(".et_pb_blurb"):
-        heading = blurb.select_one(".et_pb_module_header")
-        if heading is not None:
-            flush()
-            name, pending = " ".join(heading.get_text(" ", strip=True).split()), {}
-            continue
-        description = blurb.select_one(".et_pb_blurb_description")
-        if description is None:
-            continue
-        text = " ".join(description.get_text(" ", strip=True).split())
-        if split_us_address(text) is not None:
-            pending["address"] = text
-        elif text.startswith("+"):
-            pending["phone"] = text
-        else:
-            pending["hours"] = text
-    flush()
 
     return rows
 

@@ -212,7 +212,7 @@ def test_mokafe_splits_name_from_address(fixture_fetch):
     assert len(manhattan_ave) == 2
 
 
-def test_sanaa_groups_blurbs_into_stores(fixture_fetch):
+def test_sanaa_reads_the_current_location_cards(fixture_fetch):
     rows = scrape_sanaa_cafe(fixture_fetch("sanaa_cafe"))
 
     low, high = get_brand("sanaa_cafe").band
@@ -221,17 +221,18 @@ def test_sanaa_groups_blurbs_into_stores(fixture_fetch):
     flagship = next(r for r in rows if r.city == "San Francisco")
     assert flagship.street == "199 New Montgomery St"
     assert flagship.phone == "+1 (415) 932-6935"
-    assert flagship.hours == "Mon-Sun: 6:00 AM – 12:00 AM"
+    assert flagship.hours == "Mon-Sun: 6:00 AM - 12:00 AM"
 
-    # Telegraph is published without a ZIP.
-    telegraph = next(r for r in rows if r.street == "4770 Telegraph Ave")
-    assert telegraph.postal is None
+    # The cards carry Sacramento's real address; the older blurb layout
+    # still on the page gives it Oakland Broadway's, and is ignored.
+    sacramento = next(r for r in rows if r.city == "Sacramento")
+    assert sacramento.street == "901 K St"
+    assert sum(r.street == "801 Broadway" for r in rows) == 1
 
 
-def test_sanaa_drops_a_store_published_under_another_address(fixture_fetch):
+def test_sanaa_handles_a_run_together_zip_plus_four(fixture_fetch):
     rows = scrape_sanaa_cafe(fixture_fetch("sanaa_cafe"))
 
-    # The site gives Sacramento the Oakland Broadway address; keeping
-    # both would put a phantom store in Oakland.
-    assert not any("Sacramento" in r.name for r in rows)
-    assert sum(r.street == "801 Broadway" for r in rows) == 1
+    # Published as "LAKE FOREST CA, 926301791, US".
+    lake_forest = next(r for r in rows if r.city.casefold() == "lake forest")
+    assert lake_forest.postal == "92630"
