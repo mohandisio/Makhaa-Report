@@ -14,6 +14,11 @@ wheels/
 # data/ needs a real backup — git is not it.
 data/
 
+# Notes on data problems. Kept local: they describe rows in data/,
+# which is not in git either, and they go stale the moment a run fixes
+# something. The working copy lives with the plan for this work.
+docs/known-data-issues.md
+
 # Claude
 .claude/
 
