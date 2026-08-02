@@ -36,6 +36,12 @@
   .swatch { display: inline-block; width: .7em; height: .7em; border-radius: 50%;
             margin-right: .45em; }
   .note { color: var(--muted); font-size: .85rem; }
+  .byline { color: var(--muted); font-size: .85rem; margin: .5rem 0 0; }
+  .gh-button { display: inline-block; margin-left: .6rem; padding: .3rem .8rem;
+               background: var(--ink); color: #fff; text-decoration: none;
+               border-radius: 6px; font-size: .8rem; }
+  .gh-button:hover { background: var(--accent); }
+  footer a { color: var(--muted); }
   .badge { background: var(--accent); color: #fff; border-radius: 999px;
            font-size: .7rem; padding: .15rem .6rem; vertical-align: middle;
            text-transform: uppercase; letter-spacing: .04em; }
@@ -51,6 +57,8 @@
   store locator.
   {% if data_as_of %}Data last updated <b>{{ data_as_of[:10] }}</b>.{% endif %}
   Page generated {{ generated_at }}.</p>
+  <p class="byline">Made by mohandis_meem
+    <a class="gh-button" href="https://github.com/mohandisio">Find me on GitHub</a></p>
   <div class="tiles">
     <div class="tile"><b>{{ headline.open }}</b><span>open now</span></div>
     <div class="tile"><b>{{ headline.coming_soon }}</b><span>coming soon</span></div>
@@ -58,6 +66,23 @@
     <div class="tile"><b>{{ headline.states }}</b><span>states</span></div>
   </div>
 </header>
+
+<section class="about">
+  <h2>About this data</h2>
+  <p>Yemeni coffee houses — serving qahwa, qishr, adeni chai and honeycomb
+  bread — have been opening across the US at a remarkable pace in the last few
+  years. This project tracks that wave as a census: every location of every
+  chain we know about, in one place.</p>
+  <p>The data is captured directly from each brand's own public store locator,
+  so the brands themselves are the source of record. Addresses are normalized,
+  deduplicated, and geocoded against the US Census and OpenStreetMap Nominatim
+  geocoders; the handful of stores without a working locator are curated by
+  hand. Only what this page displays is published — the underlying dataset
+  stays private.</p>
+  <p>Next up: weekly snapshots build a history, turning this page from one
+  frame into a time-lapse — store counts over time, openings per month, and
+  how each brand's footprint spreads.</p>
+</section>
 
 <section>
   <h2>Every shop on the map</h2>
@@ -121,25 +146,9 @@
   <div class="chart-box" style="height: 340px"><canvas id="coming-soon-chart"></canvas></div>
 </section>
 
-<section class="about">
-  <h2>About this data</h2>
-  <p>Yemeni coffee houses — serving qahwa, qishr, adeni chai and honeycomb
-  bread — have been opening across the US at a remarkable pace in the last few
-  years. This project tracks that wave as a census: every location of every
-  chain we know about, in one place.</p>
-  <p>The data is captured directly from each brand's own public store locator,
-  so the brands themselves are the source of record. Addresses are normalized,
-  deduplicated, and geocoded against the US Census and OpenStreetMap Nominatim
-  geocoders; the handful of stores without a working locator are curated by
-  hand. Only what this page displays is published — the underlying dataset
-  stays private.</p>
-  <p>Next up: weekly snapshots build a history, turning this page from one
-  frame into a time-lapse — store counts over time, openings per month, and
-  how each brand's footprint spreads.</p>
-</section>
-
 <footer>Data comes from each brand's public store locator; positions from the
-locators themselves or the US Census / Nominatim geocoders.</footer>
+locators themselves or the US Census / Nominatim geocoders.
+Made by mohandis_meem — <a href="https://github.com/mohandisio">GitHub</a>.</footer>
 </main>
 
 <script id="report-data" type="application/json">{{ payload | tojson }}</script>
@@ -156,7 +165,7 @@ for (const el of document.querySelectorAll(".swatch")) {
 }
 
 /* ---- Map ---------------------------------------------------------- */
-const map = L.map("map", { scrollWheelZoom: false });
+const map = L.map("map", { scrollWheelZoom: true });
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
