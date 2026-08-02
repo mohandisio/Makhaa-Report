@@ -8,6 +8,7 @@ from rich.logging import RichHandler
 from rich.spinner import Spinner
 from rich.table import Table
 
+from . import geo
 from .models import BrandResult, RunStats
 from .registry import get_brand
 
@@ -127,6 +128,159 @@ class ScrapeProgress:
                 style="blue" if slug == self._active else None,
             )
         return table
+
+
+_VERDICT_STYLE = {
+    "adopted": "green",
+    "unchanged": "dim",
+    "inexact": "yellow",
+    "unmatched": "red",
+}
+
+
+class GeocodeProgress:
+    """The address-resolution summary, filled in as brands are worked through.
+
+    Same shape as ScrapeProgress: every brand is listed from the start, so
+    the size of the job is visible before it finishes, and the last frame
+    is the summary rather than a separate report.
+    """
+
+    def __init__(self) -> None:
+        self._order: list[str] = []
+        self._counts: dict[str, dict[str, int]] = {}
+        self._done: set[str] = set()
+        self._live: Live | None = None
+        self._caption: str = ""
+
+    # --- events ---------------------------------------------------------
+
+    def start(self, slugs: list[str]) -> None:
+        self._order = list(slugs)
+        self._counts = {slug: {} for slug in slugs}
+        self._refresh()
+
+    def lookup_started(self, fresh: int, cached: int) -> None:
+        if fresh:
+            self._caption = f"asking Census about {fresh} addresses ({cached} cached)"
+        else:
+            self._caption = f"all {cached} addresses answered from cache"
+        self._refresh()
+
+    def lookup_finished(self) -> None:
+        self._caption = ""
+        self._refresh()
+
+    def record(self, slug: str, verdict: str) -> None:
+        counts = self._counts.setdefault(slug, {})
+        counts[verdict] = counts.get(verdict, 0) + 1
+        self._refresh()
+
+    def finish_brand(self, slug: str) -> None:
+        self._done.add(slug)
+        self._refresh()
+
+    # --- rendering ------------------------------------------------------
+
+    def __enter__(self) -> "GeocodeProgress":
+        self._live = Live(self.table(), console=console, refresh_per_second=12)
+        self._live.start()
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        if self._live is not None:
+            self._live.update(self.table())
+            self._live.stop()
+            self._live = None
+            if not console.is_terminal:
+                console.line()
+
+    def _refresh(self) -> None:
+        if self._live is not None:
+            self._live.update(self.table())
+
+    def table(self) -> Table:
+        table = Table(title="Address resolution", title_justify="left",
+                      header_style="bold", caption=self._caption or None,
+                      caption_justify="left")
+        table.add_column("Brand")
+        table.add_column("Rows", justify="right")
+        for verdict in geo.VERDICTS:
+            table.add_column(verdict.capitalize(), justify="right",
+                             style=_VERDICT_STYLE[verdict])
+        table.add_column("Status")
+
+        for slug in self._order:
+            counts = self._counts.get(slug, {})
+            total = sum(counts.values())
+            if slug in self._done:
+                status = "[green]done[/green]"
+            elif total:
+                status = Spinner("dots", text="resolving")
+            else:
+                status = "[dim]pending[/dim]"
+            table.add_row(
+                get_brand(slug).display_name,
+                str(total) if total else "[dim]-[/dim]",
+                *(str(counts.get(v, 0)) if counts.get(v) else "[dim]-[/dim]"
+                  for v in geo.VERDICTS),
+                status,
+            )
+        return table
+
+
+def render_address_changes(stats, limit: int = 60) -> None:
+    """Print what resolution did, in the order a reviewer wants to read it."""
+    substantive = stats.substantive
+    if substantive:
+        table = Table(title="Addresses rewritten (beyond letter case)",
+                      title_justify="left", header_style="bold")
+        table.add_column("Brand", style="dim")
+        table.add_column("Before")
+        table.add_column("After", style="green")
+        for change in substantive[:limit]:
+            table.add_row(
+                change.slug,
+                f"{change.old_street}, {change.old_city}",
+                f"{change.new_street}, {change.new_city}",
+            )
+        console.print(table)
+        if len(substantive) > limit:
+            console.print(f"[dim]... and {len(substantive) - limit} more[/dim]")
+
+    if stats.cosmetic:
+        console.print(
+            f"[dim]{stats.cosmetic} further rows changed in letter case or "
+            f"punctuation only.[/dim]"
+        )
+
+    unresolved = stats.unresolved
+    if unresolved:
+        table = Table(title="Left alone — needs a human", title_justify="left",
+                      header_style="bold")
+        table.add_column("Brand", style="dim")
+        table.add_column("Why")
+        table.add_column("Address")
+        for change in unresolved[:limit]:
+            table.add_row(
+                change.slug,
+                f"[{_VERDICT_STYLE[change.verdict]}]{change.verdict}[/]",
+                f"{change.old_street}, {change.old_city}",
+            )
+        console.print(table)
+        if len(unresolved) > limit:
+            console.print(f"[dim]... and {len(unresolved) - limit} more[/dim]")
+
+
+def render_geocode_summary(stats) -> None:
+    counts = stats.counts
+    parts = [f"{counts.get(v, 0)} {v}" for v in geo.VERDICTS]
+    console.print(f"{stats.total} addresses: " + ", ".join(parts))
+    if stats.collisions:
+        console.print(
+            f"[yellow]{len(stats.collisions)} rows now duplicate another "
+            f"address and were left as-is[/]"
+        )
 
 
 def render_scrape_summary(stats: RunStats, table: bool = True) -> None:

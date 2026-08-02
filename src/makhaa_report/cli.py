@@ -36,7 +36,11 @@ def main(argv: list[str] | None = None) -> int:
              'street="123 Grand Ave" city=Oakland state=CA',
     )
 
-    sub.add_parser("geocode", help="fill missing coordinates via Census batch geocoder")
+    p_geocode = sub.add_parser(
+        "geocode", help="resolve addresses against the Census geocoder"
+    )
+    p_geocode.add_argument("--dry-run", action="store_true",
+                           help="show what would change, write nothing")
 
     p_export = sub.add_parser("export", help="mirror database to CSVs")
     p_export.add_argument("--out", default=None, metavar="DIR")
@@ -81,6 +85,20 @@ def main(argv: list[str] | None = None) -> int:
         render_scrape_summary(stats)
         return 1 if stats.brands_failed else 0
 
+    if args.command == "geocode":
+        from .console import (
+            GeocodeProgress, render_address_changes, render_geocode_summary,
+        )
+        from .geocode import run_geocode
+
+        with GeocodeProgress() as progress:
+            stats = run_geocode(db.connect(), dry_run=args.dry_run, progress=progress)
+        render_address_changes(stats)
+        render_geocode_summary(stats)
+        if args.dry_run:
+            console.print("[yellow]dry run — nothing written[/]")
+        return 0
+
     if args.command == "export":
         from pathlib import Path
 
@@ -91,7 +109,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     not_implemented = {
-        "geocode": "fill missing coordinates",
         "report": "generate the HTML report",
         "diff": "compare two runs",
     }

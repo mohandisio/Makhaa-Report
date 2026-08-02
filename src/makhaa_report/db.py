@@ -167,6 +167,23 @@ def upsert_location(conn: sqlite3.Connection, loc: Location) -> None:
     conn.execute(_UPSERT, tuple(getattr(loc, c) for c in _LOCATION_COLS))
 
 
+def rekey_location(conn: sqlite3.Connection, old_uid: str, new_uid: str,
+                   street: str, city: str, postal: str | None) -> None:
+    """Store a corrected address, moving the row to the uid it now hashes to.
+
+    Updating in place rather than inserting the corrected row is what
+    keeps one store one row: an insert would leave the uncorrected
+    original behind with nothing pointing at it. Snapshots follow the
+    row so its history stays attached.
+    """
+    conn.execute(
+        "UPDATE locations SET uid=?, street=?, city=?, postal=? WHERE uid=?",
+        (new_uid, street, city, postal, old_uid),
+    )
+    if new_uid != old_uid:
+        conn.execute("UPDATE snapshots SET uid=? WHERE uid=?", (new_uid, old_uid))
+
+
 def dump_table(conn: sqlite3.Connection, name: str) -> tuple[list[str], list[tuple]]:
     """Full table contents in canonical order, for CSV export."""
     cur = conn.execute(f"SELECT * FROM {name} ORDER BY {_DUMP_ORDER[name]}")

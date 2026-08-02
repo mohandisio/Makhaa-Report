@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from makhaa_report import geo
-from makhaa_report.normalize import split_unit
+from makhaa_report.normalize import recase, split_unit
 
 FIXTURE = Path(__file__).parent / "fixtures" / "geo" / "census_batch.csv"
 
@@ -58,6 +58,38 @@ def test_split_unit_leaves_a_unitless_street_alone(street):
 def test_split_unit_ignores_a_marker_in_the_street_name():
     # Cutting here would truncate the street to its house number.
     assert split_unit("501 Floor Rd") == ("501 Floor Rd", "")
+
+
+# --- recase -------------------------------------------------------------
+
+@pytest.mark.parametrize("canonical, original, expected", [
+    # A token we already had keeps our spelling, however Census shouts it.
+    ("10009 N MACARTHUR BLVD", "10009 N MacArthur Blvd", "10009 N MacArthur Blvd"),
+    ("15174 LAGRANGE RD", "15174 LaGrange Rd", "15174 LaGrange Rd"),
+    ("9325 JW CLAY BLVD", "9325 JW Clay Blvd.", "9325 JW Clay Blvd"),
+    # A street type has one right spelling, so ours does not get to keep
+    # shouting it even when the rest of the address is cased normally.
+    ("6124 N CANTON CENTER RD", "6124 N. Canton Center RD", "6124 N Canton Center Rd"),
+    # A token Census introduced is title-cased.
+    ("1737 N ALAFAYA TRL", "1737 N Alafaya Trail", "1737 N Alafaya Trl"),
+    ("408 SUNCREST TOWNE CENTRE DR", "408 Suncrest Towne Centre Drive",
+     "408 Suncrest Towne Centre Dr"),
+    ("SAINT PAUL", "St Paul", "Saint Paul"),
+    # Directionals and route prefixes stay capitalised.
+    ("17585 NE 67TH CT", "17585 Northeast 67th Court", "17585 NE 67th Ct"),
+    ("222 E FM 544", "222 E Farm To Market 544", "222 E FM 544"),
+    # An original that shouts carries no casing worth keeping.
+    ("LOS ANGELES", "LOS ANGELES", "Los Angeles"),
+    ("22621 LAKE FOREST DR", "22621 LAKE FOREST DR", "22621 Lake Forest Dr"),
+    ("9135 W STOCKTON BLVD", "9135 WEST STOCKTON BOULE", "9135 W Stockton Blvd"),
+])
+def test_recase(canonical, original, expected):
+    assert recase(canonical, original) == expected
+
+
+def test_recase_lowers_an_ordinal_rather_than_title_casing_it():
+    # title() would give "14Th".
+    assert recase("1529 14TH ST NW", "1529 US-14 W") == "1529 14th St NW"
 
 
 # --- parsing ------------------------------------------------------------

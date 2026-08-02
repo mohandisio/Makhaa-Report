@@ -15,11 +15,12 @@ import csv
 import io
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from . import config
+from .normalize import recase, split_unit
 
 log = logging.getLogger("makhaa")
 
@@ -155,6 +156,56 @@ def lookup(queries: Sequence[Query], *, post: Post | None = None) -> dict[str, M
             log.warning("census returned no row for %s (%s)", q.key, q.street)
             out[q.key] = MISS
     return out
+
+
+#: What the geocoder's answer did to a stored address.
+VERDICTS = ("adopted", "unchanged", "inexact", "unmatched")
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """What one geocoder answer means for one stored row."""
+
+    key: str
+    verdict: str  # one of VERDICTS
+    street: str
+    city: str
+    postal: str | None
+
+    @property
+    def changed(self) -> bool:
+        return self.verdict == "adopted"
+
+
+def resolve(key: str, match: Match | None, street: str, city: str,
+            postal: str | None) -> Resolution:
+    """Decide the stored address in light of what the geocoder said.
+
+    Only an exact match is adopted. A non-exact one is a guess dressed as
+    an answer — "285 South Broadway, Long Isand" comes back as a real
+    address in a town twenty miles away — so those rows are reported and
+    left for a human.
+
+    The adopted street keeps our own casing wherever we already had the
+    token, because Census answers in capitals and would otherwise turn
+    "MacArthur" into "MACARTHUR".
+    """
+    unchanged = Resolution(key, "unchanged", street, city, postal)
+    if match is None or not match.matched:
+        return replace(unchanged, verdict="unmatched")
+    if not match.exact:
+        return replace(unchanged, verdict="inexact")
+
+    line, unit = split_unit(street)
+    new_line = recase(match.street or line, line)
+    # The geocoder drops the unit, so put ours back on the end.
+    new_street = f"{new_line} {unit}".strip()
+    new_city = recase(match.city or city, city)
+    new_postal = match.postal or postal
+
+    if (new_street, new_city, new_postal) == (street, city, postal):
+        return unchanged
+    return Resolution(key, "adopted", new_street, new_city, new_postal)
 
 
 class MatchCache:

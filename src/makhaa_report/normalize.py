@@ -215,6 +215,49 @@ def split_unit(street: str) -> tuple[str, str]:
     return street.strip(), ""
 
 
+# Tokens that stay capitalised when a geocoder introduces them, because
+# title-casing turns "NE" into "Ne" and "FM 544" into "Fm 544".
+_KEEP_UPPER = _DIRECTIONALS | {"fm", "us", "sr", "cr", "rr", "i"}
+
+
+def recase(canonical: str, original: str) -> str:
+    """Re-case a geocoder's shouted output using the original's spelling.
+
+    Census answers in capitals, so adopting its address verbatim would
+    shout the whole dataset and flatten "MacArthur" to "Macarthur". A
+    token the original already had keeps the original's casing; a token
+    the geocoder introduced ("TRAIL" -> "TRL") is title-cased.
+    """
+    seen: dict[str, str] = {}
+    # An original with no lowercase anywhere is shouting too, and has no
+    # casing worth keeping. Judged over the whole string, not per token,
+    # so "JW" survives in "JW Clay Blvd" without rescuing the "DR" in
+    # "LAKE FOREST DR".
+    if any(c.islower() for c in original):
+        for token in original.split():
+            # A street type has one right spelling, so let the canonical
+            # form win: preserving ours leaves "Canton Center RD" shouting
+            # inside an otherwise ordinary address. Proper nouns are what
+            # this is protecting.
+            if token.casefold() in _STREET_TYPES:
+                continue
+            seen.setdefault(token.casefold(), token)
+    out = []
+    for token in canonical.split():
+        key = token.casefold()
+        if key in seen:
+            out.append(seen[key])
+        elif key in _KEEP_UPPER:
+            out.append(token.upper())
+        elif token[:1].isdigit():
+            # title() would make "14TH" into "14Th"; an ordinal only ever
+            # wants its letters lowered.
+            out.append(token.capitalize())
+        else:
+            out.append(token.title())
+    return " ".join(out)
+
+
 def normalize_postal(raw: str | None) -> str | None:
     if not raw:
         return None
