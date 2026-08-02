@@ -14,6 +14,11 @@ wheels/
 # data/ needs a real backup — git is not it.
 data/
 
+# Exploratory notebooks. Scratch space: executed outputs embed data
+# rows, and data stays out of git. Anything worth keeping graduates
+# into src/ as tested code.
+notebooks/
+
 # Notes on data problems. Kept local: they describe rows in data/,
 # which is not in git either, and they go stale the moment a run fixes
 # something. The working copy lives with the plan for this work.
