@@ -44,6 +44,17 @@ class Change:
     new_city: str
     old_postal: str | None = None
     new_postal: str | None = None
+    state: str = ""
+    #: Already corrected by hand, so not waiting on anybody.
+    by_hand: bool = False
+
+    def before(self) -> str:
+        zip_ = f" {self.old_postal}" if self.old_postal else ""
+        return f"{self.old_street}, {self.old_city}, {self.state}{zip_}"
+
+    def after(self) -> str:
+        zip_ = f" {self.new_postal}" if self.new_postal else ""
+        return f"{self.new_street}, {self.new_city}, {self.state}{zip_}"
 
     @property
     def cosmetic(self) -> bool:
@@ -63,6 +74,10 @@ class GeocodeStats:
     #: Rows left without coordinates, or carrying ones outside the US.
     flagged: list[str] = field(default_factory=list)
     still_dark: int = 0
+    #: Which source could confirm each address exists.
+    verified: dict[str, int] = field(default_factory=dict)
+    #: Addresses no source recognised, as "street, city, ST".
+    unverified: list[str] = field(default_factory=list)
 
     @property
     def total(self) -> int:
@@ -78,7 +93,9 @@ class GeocodeStats:
 
     @property
     def unresolved(self) -> list[Change]:
-        return [c for c in self.changes if c.verdict in ("inexact", "unmatched")]
+        """Rows still waiting on a human — not ones a human already fixed."""
+        return [c for c in self.changes
+                if c.verdict in ("inexact", "unmatched") and not c.by_hand]
 
 
 def _squash(value: str) -> str:
@@ -98,7 +115,7 @@ def run_geocode(
     stats = GeocodeStats()
 
     rows = conn.execute(
-        "SELECT uid, brand, street, city, state, postal FROM locations "
+        "SELECT uid, brand, street, city, state, postal, is_manual FROM locations "
         "ORDER BY brand, state, city, street"
     ).fetchall()
     progress.start(sorted({r["brand"] for r in rows}))
@@ -121,6 +138,10 @@ def run_geocode(
     # corrected. Collecting the coordinates here, while both uids are in
     # hand, is what stops a corrected row losing them.
     points: dict[str, tuple[float, float]] = {}
+    # Addresses Census could not confirm. OpenStreetMap gets a second
+    # look at these, whether or not they already have coordinates —
+    # the question there is whether the address exists at all.
+    unresolved: set[str] = set()
 
     for row in rows:
         match = matches.get(row["uid"])
@@ -136,10 +157,25 @@ def run_geocode(
                 old_street=row["street"], old_city=row["city"],
                 new_street=resolution.street, new_city=resolution.city,
                 old_postal=row["postal"], new_postal=resolution.postal,
+                state=row["state"], by_hand=bool(row["is_manual"]),
             ))
-        def keep_point(uid: str, match=match) -> None:
-            if match is not None and match.matched and match.lat is not None:
+        def keep_point(uid: str, match=match, verdict=resolution.verdict,
+                       row=row) -> None:
+            confirmed = verdict not in ("inexact", "unmatched")
+            # Coordinates only from a match whose street is ours. A
+            # non-exact hit resolves to a different address — "1326 Lake
+            # St" comes back as "1326 W LAKE ST" — and plotting the store
+            # there would be a wrong answer dressed as a right one.
+            if confirmed and match is not None and match.lat is not None:
                 points[uid] = (match.lat, match.lon)
+            if confirmed:
+                stats.verified["census"] = stats.verified.get("census", 0) + 1
+            elif row["is_manual"]:
+                # Somebody checked this one by hand; that outranks a
+                # gazetteer that has never heard of the street.
+                stats.verified["hand"] = stats.verified.get("hand", 0) + 1
+            else:
+                unresolved.add(uid)
 
         if not resolution.changed:
             keep_point(row["uid"])
@@ -168,7 +204,7 @@ def run_geocode(
     if not dry_run:
         conn.commit()
 
-    _fill_coordinates(conn, points, stats, dry_run=dry_run,
+    _fill_coordinates(conn, points, unresolved, stats, dry_run=dry_run,
                       progress=progress, get=get, sleep=sleep)
 
     for slug in sorted({r["brand"] for r in rows}):
@@ -179,6 +215,7 @@ def run_geocode(
 def _fill_coordinates(
     conn: sqlite3.Connection,
     points: dict[str, tuple[float, float]],
+    unresolved: set[str],
     stats: GeocodeStats,
     *,
     dry_run: bool,
@@ -186,33 +223,35 @@ def _fill_coordinates(
     get: geo.Get | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> None:
-    """Give coordinates to the rows that have none, and flag the impossible.
+    """Place the rows that have no coordinates, and confirm the doubtful ones.
 
-    Rows that already carry coordinates are left alone — a locator that
-    publishes its own is closer to the store than a gazetteer is — but
-    every coordinate is checked for being in the country, because one
+    A row already carrying coordinates keeps them — a locator that
+    publishes its own sits closer to the store than a gazetteer does —
+    but every coordinate is checked for being in the country, because one
     locator published a New Jersey store's position in Lebanon.
+
+    OpenStreetMap sees two kinds of row: those with no coordinates, and
+    those whose address Census could not confirm. The second kind may
+    already be plotted; the open question is whether the address is real.
     """
     rows = conn.execute(
         "SELECT uid, brand, street, city, state, postal, lat, lon, geocode_flagged "
         "FROM locations ORDER BY brand, state, city, street"
     ).fetchall()
 
-    dark: list = []
+    ask_osm: list = []
     for row in rows:
+        if row["lat"] is None and row["uid"] in points:
+            _write_point(conn, row, *points[row["uid"]], "census", stats,
+                         dry_run=dry_run, progress=progress)
+        elif row["lat"] is None or row["uid"] in unresolved:
+            ask_osm.append(row)
         if row["lat"] is not None:
             _check_bounds(conn, row, stats, dry_run=dry_run)
-            continue
-        point = points.get(row["uid"])
-        if point is not None:
-            _write_point(conn, row, point[0], point[1], "census", stats,
-                         dry_run=dry_run, progress=progress)
-        else:
-            dark.append(row)
 
-    if dark:
-        _fill_from_nominatim(conn, dark, stats, dry_run=dry_run,
-                             progress=progress, get=get, sleep=sleep)
+    if ask_osm:
+        _ask_nominatim(conn, ask_osm, unresolved, stats, dry_run=dry_run,
+                       progress=progress, get=get, sleep=sleep)
 
 
 def _query_for(row) -> geo.Query:
@@ -244,20 +283,29 @@ def _check_bounds(conn, row, stats: GeocodeStats, *, dry_run: bool) -> None:
 
 def _flag(conn, row, stats: GeocodeStats, flagged: bool, *, dry_run: bool) -> None:
     """Write the flag every run, so a row that gets fixed stops being flagged."""
-    if flagged:
+    if flagged and row["uid"] not in stats.flagged:
+        # A row can fail two checks at once; it is still one row to review.
         stats.flagged.append(row["uid"])
-    if not dry_run and bool(row["geocode_flagged"]) != flagged:
+    if not dry_run:
+        # Written unconditionally: the row was read before the earlier
+        # checks ran, so comparing against it would miss a flag that a
+        # later check needs to set.
         db.set_flagged(conn, row["uid"], flagged)
 
 
-def _fill_from_nominatim(conn, rows, stats: GeocodeStats, *, dry_run: bool,
-                         progress: NullProgress, get: geo.Get | None,
-                         sleep: Callable[[float], None]) -> None:
-    """Place what the Census gazetteer could not, one request at a time.
+def _ask_nominatim(conn, rows, unresolved: set[str], stats: GeocodeStats, *,
+                   dry_run: bool, progress: NullProgress, get: geo.Get | None,
+                   sleep: Callable[[float], None]) -> None:
+    """Place and confirm what the Census gazetteer could not, one at a time.
 
     OpenStreetMap's usage policy caps this at one request a second and
     forbids bulk querying, so the cache is what keeps a weekly run down to
     the handful of addresses that are genuinely new.
+
+    A hit here is weaker evidence than a Census exact match — OSM answers
+    from contributed data and may land on a street rather than a building
+    — so it confirms that the address exists and supplies coordinates,
+    but never rewrites the stored address.
     """
     cache = geo.MatchCache(config.GEO_DIR / "nominatim.json")
     progress.fallback_started(len(rows))
@@ -272,12 +320,24 @@ def _fill_from_nominatim(conn, rows, stats: GeocodeStats, *, dry_run: bool,
             # One request a second, as OpenStreetMap asks. Only after a
             # real lookup — a cache hit costs them nothing.
             sleep(config.RATE_DELAY_S)
-        if match.matched and match.lat is not None:
+
+        if match.matched and row["uid"] in unresolved:
+            stats.verified["openstreetmap"] = stats.verified.get("openstreetmap", 0) + 1
+
+        if match.matched and match.lat is not None and row["lat"] is None:
             _write_point(conn, row, match.lat, match.lon, "nominatim", stats,
                          dry_run=dry_run, progress=progress)
-        else:
+            continue
+        if match.matched:
+            continue  # already plotted; OSM was only asked to confirm it
+
+        if row["lat"] is None:
             stats.still_dark += 1
-            _flag(conn, row, stats, True, dry_run=dry_run)
+        if row["uid"] in unresolved:
+            stats.unverified.append(
+                f"{row['street']}, {row['city']}, {row['state']}"
+            )
+        _flag(conn, row, stats, True, dry_run=dry_run)
     progress.fallback_finished()
     if not dry_run:
         conn.commit()

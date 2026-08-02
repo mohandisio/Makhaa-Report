@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from . import config
-from .normalize import recase, split_unit
+from .normalize import normalize_street, recase, split_unit
 
 log = logging.getLogger("makhaa")
 
@@ -251,10 +251,16 @@ def resolve(key: str, match: Match | None, street: str, city: str,
     unchanged = Resolution(key, "unchanged", street, city, postal)
     if match is None or not match.matched:
         return replace(unchanged, verdict="unmatched")
-    if not match.exact:
-        return replace(unchanged, verdict="inexact")
 
     line, unit = split_unit(street)
+    # A non-exact match whose street is ours letter for letter is only
+    # correcting the city — "Manhattan" to "New York", "Canton Township"
+    # to "Canton". That is safe. A non-exact match that also moves the
+    # street is a different address: Census answers "4341 14th St" with
+    # "4341 14TH PL" and "800 Loudon Rd" with "800 NEW LOUDON RD".
+    if not match.exact and normalize_street(match.street or "") != normalize_street(line):
+        return replace(unchanged, verdict="inexact")
+
     new_line = recase(match.street or line, line)
     # The geocoder drops the unit, so put ours back on the end.
     new_street = f"{new_line} {unit}".strip()
