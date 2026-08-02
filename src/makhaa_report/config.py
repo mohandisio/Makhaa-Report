@@ -9,6 +9,8 @@ MANUAL_DIR = DATA_DIR / "manual"
 OVERRIDES_PATH = DATA_DIR / "overrides.csv"
 EXPORT_DIR = DATA_DIR / "exports"
 GEO_DIR = DATA_DIR / "geo"
+REPORT_DIR = DATA_DIR / "reports"
+REPORT_PATH = REPORT_DIR / "report.html"
 
 USER_AGENT = (
     "makhaa-report/0.1 (Yemeni coffee chain census; "
