@@ -244,7 +244,7 @@ class GeocodeProgress:
         for verdict in geo.VERDICTS:
             table.add_column(verdict.capitalize(), justify="right",
                              style=_VERDICT_STYLE[verdict])
-        table.add_column("Coords", justify="right", style="cyan")
+        table.add_column("+Coords", justify="right", style="cyan")
         table.add_column("Status")
 
         for slug in self._order:
@@ -278,11 +278,7 @@ def render_address_changes(stats, limit: int = 60) -> None:
         table.add_column("Before")
         table.add_column("After", style="green")
         for change in substantive[:limit]:
-            table.add_row(
-                change.slug,
-                f"{change.old_street}, {change.old_city}",
-                f"{change.new_street}, {change.new_city}",
-            )
+            table.add_row(change.slug, change.before(), change.after())
         console.print(table)
         if len(substantive) > limit:
             console.print(f"[dim]... and {len(substantive) - limit} more[/dim]")
@@ -293,18 +289,28 @@ def render_address_changes(stats, limit: int = 60) -> None:
             f"punctuation only.[/dim]"
         )
 
+    unverified = set(stats.unverified)
     unresolved = stats.unresolved
     if unresolved:
-        table = Table(title="Left alone — needs a human", title_justify="left",
-                      header_style="bold")
+        table = Table(
+            title="Census could not confirm these", title_justify="left",
+            header_style="bold",
+            caption="OSM = OpenStreetMap knows the address; "
+                    "no = neither source does",
+            caption_justify="left",
+        )
         table.add_column("Brand", style="dim")
-        table.add_column("Why")
+        table.add_column("Census")
+        table.add_column("OSM")
         table.add_column("Address")
         for change in unresolved[:limit]:
+            address = change.before()
+            found = address not in unverified
             table.add_row(
                 change.slug,
                 f"[{_VERDICT_STYLE[change.verdict]}]{change.verdict}[/]",
-                f"{change.old_street}, {change.old_city}",
+                "[green]yes[/green]" if found else "[red]no[/red]",
+                address,
             )
         console.print(table)
         if len(unresolved) > limit:
@@ -320,9 +326,16 @@ def render_geocode_summary(stats) -> None:
             f"[yellow]{len(stats.collisions)} rows now duplicate another "
             f"address and were left as-is[/]"
         )
+    if stats.verified:
+        verified = ", ".join(f"{n} by {src}" for src, n in sorted(stats.verified.items()))
+        console.print(f"[green]addresses confirmed: {verified}[/]")
+    if stats.unverified:
+        console.print(
+            f"[red]{len(stats.unverified)} addresses no source recognises[/]"
+        )
     if stats.filled:
         filled = ", ".join(f"{n} from {src}" for src, n in sorted(stats.filled.items()))
-        console.print(f"[cyan]coordinates: {filled}[/]")
+        console.print(f"[cyan]coordinates added this run: {filled}[/]")
     if stats.still_dark:
         console.print(
             f"[red]{stats.still_dark} rows have no coordinates from any "

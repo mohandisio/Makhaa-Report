@@ -323,6 +323,69 @@ def test_connect_rekeys_rows_left_by_an_older_normalizer(tmp_path, monkeypatch):
     assert conn.execute("SELECT uid FROM snapshots").fetchone()["uid"] == uid
 
 
+# --- verification -------------------------------------------------------
+
+def test_a_city_only_correction_is_adopted():
+    # Census returns Non_Exact but hands back our street letter for
+    # letter: it is only correcting the borough. Safe.
+    match = geo.Match(True, False, "142 W 34TH ST", "NEW YORK", "NY", "10001")
+    r = geo.resolve("k", match, "142 West 34th st", "Manhattan", "10001")
+    assert r.verdict == "adopted"
+    assert (r.street, r.city) == ("142 W 34th St", "New York")
+
+
+def test_a_street_change_is_still_never_adopted():
+    # Same Non_Exact verdict, but the street moved: 14th St is not 14th Pl.
+    match = geo.Match(True, False, "4341 14TH PL", "PLANO", "TX", "75074")
+    r = geo.resolve("k", match, "4341 14th St", "Plano", "75074")
+    assert r.verdict == "inexact"
+    assert r.street == "4341 14th St"
+
+
+def test_openstreetmap_confirms_an_address_census_could_not(conn):
+    _store(conn, street="1076 Rte 59", city="Aurora", state="IL", postal="60504")
+    conn.execute("UPDATE locations SET lat=41.7, lon=-88.2, geocode_source='locator'")
+    conn.commit()
+
+    stats = _run(conn, post=_responder({}), get=_osm({"1076 Rte 59": (41.747, -88.206)}))
+
+    assert stats.verified == {"openstreetmap": 1}
+    assert stats.unverified == []
+    # It already had coordinates; OSM was asked only to confirm the address.
+    row = conn.execute("SELECT lat, geocode_source, geocode_flagged FROM locations").fetchone()
+    assert (row["lat"], row["geocode_source"]) == (41.7, "locator")
+    assert row["geocode_flagged"] == 0
+
+
+def test_an_address_neither_source_knows_is_reported(conn):
+    _store(conn, street="21800 Towncenter Plz", city="Sterling", state="VA", postal="20164")
+    conn.execute("UPDATE locations SET lat=39.0, lon=-77.4, geocode_source='locator'")
+    conn.commit()
+
+    stats = _run(conn, post=_responder({}), get=_osm())
+
+    assert stats.unverified == ["21800 Towncenter Plz, Sterling, VA"]
+    assert len(stats.flagged) == 1
+    # The in-bounds check clears the flag before the OSM pass sets it, so
+    # what the run reports and what the database holds must agree.
+    assert conn.execute(
+        "SELECT COUNT(*) FROM locations WHERE geocode_flagged=1"
+    ).fetchone()[0] == len(stats.flagged)
+
+
+def test_a_verified_row_is_not_asked_about_twice(conn):
+    _store(conn)
+    post = _responder({"1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826"})
+    asked: list[str] = []
+
+    def counting(url, params):
+        asked.append(params["street"])
+        return "[]"
+
+    _run(conn, post=post, get=counting)
+    assert asked == [], "census settled this address; OSM should not be troubled"
+
+
 # --- coordinates --------------------------------------------------------
 
 def test_census_coordinates_land_on_the_corrected_row(conn):
@@ -394,11 +457,15 @@ def test_a_flag_clears_once_the_row_is_fixed(conn):
     conn.commit()
     assert _run(conn, post=_responder({})).flagged
 
-    conn.execute("UPDATE locations SET lat=40.81466, lon=-74.21811, geocode_source='manual'")
+    # What an override does: sets the coordinates and marks the row as
+    # hand-checked, which is what stops it being reported as unverified.
+    conn.execute("UPDATE locations SET lat=40.81466, lon=-74.21811, "
+                 "geocode_source='manual', is_manual=1")
     conn.commit()
     stats = _run(conn, post=_responder({}))
 
     assert stats.flagged == []
+    assert stats.verified == {"hand": 1}
     assert conn.execute("SELECT geocode_flagged FROM locations").fetchone()[0] == 0
 
 
