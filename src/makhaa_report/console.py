@@ -350,6 +350,33 @@ def render_geocode_summary(stats) -> None:
         console.print(f"[yellow]{len(stats.flagged)} rows flagged for review[/]")
 
 
+_KIND_STYLE = {"unconfirmed": "yellow", "coordinate": "red"}
+
+
+def render_sanitize_queue(findings) -> None:
+    """The rows waiting on a person, worst first."""
+    if not findings:
+        console.print("[green]nothing to review — every row is confirmed[/]")
+        return
+    table = Table(title="Rows needing a human", title_justify="left",
+                  header_style="bold")
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Brand", style="dim")
+    table.add_column("Why")
+    table.add_column("Address")
+    for i, f in enumerate(findings, 1):
+        table.add_row(str(i), f.brand,
+                      f"[{_KIND_STYLE[f.kind]}]{f.why}[/]", f.address)
+    console.print(table)
+    kinds = {}
+    for f in findings:
+        kinds[f.kind] = kinds.get(f.kind, 0) + 1
+    console.print(
+        f"{len(findings)} to review: "
+        + ", ".join(f"{n} {k}" for k, n in sorted(kinds.items()))
+    )
+
+
 def render_scrape_summary(stats: RunStats, table: bool = True) -> None:
     """Print the run outcome. Skip the table when a live one already showed it."""
     if table:

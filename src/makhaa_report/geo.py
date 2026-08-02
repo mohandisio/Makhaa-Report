@@ -15,6 +15,7 @@ import csv
 import io
 import json
 import logging
+import math
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
@@ -165,6 +166,23 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 # which is in Lebanon. The Aleutians cross into positive longitude and
 # would be flagged; a store there would be worth a second look anyway.
 US_BOUNDS = (18.9, 71.5, -179.9, -66.9)  # lat_min, lat_max, lon_min, lon_max
+
+
+def distance_km(lat_a: float, lon_a: float, lat_b: float, lon_b: float) -> float:
+    """Great-circle distance, for comparing two answers about one address."""
+    radius = 6371.0
+    a, b = math.radians(lat_a), math.radians(lat_b)
+    d_lat = math.radians(lat_b - lat_a)
+    d_lon = math.radians(lon_b - lon_a)
+    h = math.sin(d_lat / 2) ** 2 + math.cos(a) * math.cos(b) * math.sin(d_lon / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(h))
+
+
+#: How far a locator's coordinate may sit from an exact Census match
+#: before it is treated as wrong rather than imprecise. Of 226 comparable
+#: rows the median is 0.000 km and the 90th percentile 0.147 km; the next
+#: largest is 1.2 km and then nothing until 6.7 km, so the gap is wide.
+COORDINATE_TOLERANCE_KM = 2.0
 
 
 def in_us(lat: float, lon: float) -> bool:

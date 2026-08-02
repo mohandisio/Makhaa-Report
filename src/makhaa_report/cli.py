@@ -42,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
     p_geocode.add_argument("--dry-run", action="store_true",
                            help="show what would change, write nothing")
 
+    p_sanitize = sub.add_parser(
+        "sanitize", help="review the rows a geocoder could not settle"
+    )
+    p_sanitize.add_argument("--list", action="store_true", dest="list_only",
+                            help="print the queue and exit")
+
     p_export = sub.add_parser("export", help="mirror database to CSVs")
     p_export.add_argument("--out", default=None, metavar="DIR")
 
@@ -97,6 +103,17 @@ def main(argv: list[str] | None = None) -> int:
         render_geocode_summary(stats)
         if args.dry_run:
             console.print("[yellow]dry run — nothing written[/]")
+        return 0
+
+    if args.command == "sanitize":
+        from .console import render_sanitize_queue
+        from .sanitize import find_problems
+
+        findings = find_problems(db.connect())
+        render_sanitize_queue(findings)
+        if args.list_only:
+            return 0
+        console.print("[dim]the interactive review is not built yet[/dim]")
         return 0
 
     if args.command == "export":
