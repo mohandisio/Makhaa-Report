@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Literal
 
 STATUSES = ("coming_soon", "open", "relocating", "closed_permanently", "unknown")
-GEOCODE_SOURCES = ("locator", "census", "manual")
+GEOCODE_SOURCES = ("locator", "census", "nominatim", "manual")
 
 
 def utcnow_iso() -> str:

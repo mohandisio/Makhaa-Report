@@ -4,6 +4,8 @@ The uid is a hash of the address, so correcting an address moves the row.
 These tests pin that the store stays one row with its history attached.
 """
 
+import json
+
 import pytest
 
 from makhaa_report import db, geo, geocode
@@ -36,6 +38,25 @@ def _store(conn, brand="haraz", street="1737 N Alafaya Trail", city="Orlando",
     db.insert_snapshot(conn, 1, loc.uid, now, "open", "")
     conn.commit()
     return loc.uid
+
+
+def _osm(results: dict[str, tuple[float, float]] | None = None):
+    """Stand in for Nominatim: {street queried: (lat, lon)}, else no result."""
+    results = results or {}
+
+    def get(url: str, params: dict[str, str]) -> str:
+        point = results.get(params["street"])
+        if point is None:
+            return "[]"
+        return json.dumps([{"lat": str(point[0]), "lon": str(point[1])}])
+
+    return get
+
+
+def _run(conn, **kwargs):
+    """run_geocode with the clock stubbed, so the rate limit costs no time."""
+    kwargs.setdefault("get", _osm())
+    return geocode.run_geocode(conn, sleep=lambda _s: None, **kwargs)
 
 
 def _responder(rows: dict[str, str]):
@@ -109,7 +130,7 @@ def test_adopting_moves_the_row_and_its_snapshots(conn):
     old_uid = _store(conn)
     post = _responder({"1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826"})
 
-    geocode.run_geocode(conn, post=post)
+    _run(conn, post=post)
 
     new_uid = make_uid("haraz", "1737 N Alafaya Trl", "Orlando", "FL")
     assert new_uid != old_uid
@@ -124,7 +145,7 @@ def test_dry_run_writes_nothing(conn):
     old_uid = _store(conn)
     post = _responder({"1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826"})
 
-    stats = geocode.run_geocode(conn, dry_run=True, post=post)
+    stats = _run(conn, dry_run=True, post=post)
 
     assert stats.counts["adopted"] == 1
     row = conn.execute("SELECT uid, street FROM locations").fetchone()
@@ -140,7 +161,7 @@ def test_unit_is_stripped_before_the_lookup_and_restored_after(conn):
         asked.append(street)
         return _responder({street: "1561 LEE RD, WINTER PARK, FL, 32789"})(body)
 
-    geocode.run_geocode(conn, post=post)
+    _run(conn, post=post)
 
     assert asked == ["1561 Lee Rd"], "the unit must not be sent to the geocoder"
     assert conn.execute("SELECT street FROM locations").fetchone()[0] == \
@@ -159,7 +180,7 @@ def test_two_rows_collapsing_to_one_address_are_left_alone(conn):
         "142 W 34th St": "142 W 34TH ST, NEW YORK, NY, 10001",
     })
 
-    stats = geocode.run_geocode(conn, post=post)
+    stats = _run(conn, post=post)
 
     assert len(stats.collisions) == 1
     assert conn.execute("SELECT COUNT(*) FROM locations").fetchone()[0] == 2
@@ -168,15 +189,15 @@ def test_two_rows_collapsing_to_one_address_are_left_alone(conn):
 def test_second_run_asks_the_service_nothing(conn):
     _store(conn)
     post = _responder({"1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826"})
-    geocode.run_geocode(conn, post=post)
+    _run(conn, post=post)
 
     def boom(body: str) -> str:
         raise AssertionError("re-ran a lookup that the cache already answered")
 
     # The address changed, so this asks about the new one — still one call,
     # never a repeat of the old.
-    geocode.run_geocode(conn, post=_responder({}))
-    stats = geocode.run_geocode(conn, post=boom)
+    _run(conn, post=_responder({}))
+    stats = _run(conn, post=boom)
     assert stats.total == 1
 
 
@@ -184,7 +205,7 @@ def test_change_records_carry_before_and_after(conn):
     _store(conn)
     post = _responder({"1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826"})
 
-    stats = geocode.run_geocode(conn, dry_run=True, post=post)
+    stats = _run(conn, dry_run=True, post=post)
 
     change = stats.substantive[0]
     assert change.old_street == "1737 N Alafaya Trail"
@@ -192,12 +213,115 @@ def test_change_records_carry_before_and_after(conn):
     assert not change.cosmetic
 
 
+# --- coordinates --------------------------------------------------------
+
+def test_census_coordinates_land_on_the_corrected_row(conn):
+    # The correction re-keys the row, so a coordinate looked up under the
+    # old uid has to follow it across.
+    _store(conn)
+    post = _responder({"1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826"})
+
+    _run(conn, post=post)
+
+    row = conn.execute("SELECT lat, lon, geocode_source FROM locations").fetchone()
+    assert (round(row["lat"], 1), round(row["lon"], 1)) == (28.6, -81.2)
+    assert row["geocode_source"] == "census"
+
+
+def test_nominatim_places_what_census_could_not(conn):
+    _store(conn, street="21788 Katy Freeway", city="Katy", state="TX", postal="77449")
+
+    stats = _run(conn, post=_responder({}),
+                 get=_osm({"21788 Katy Freeway": (29.78, -95.76)}))
+
+    row = conn.execute("SELECT lat, lon, geocode_source FROM locations").fetchone()
+    assert (round(row["lat"], 2), round(row["lon"], 2)) == (29.78, -95.76)
+    assert row["geocode_source"] == "nominatim"
+    assert stats.filled == {"nominatim": 1}
+
+
+def test_a_row_no_source_can_place_stays_empty_and_flagged(conn):
+    _store(conn, street="99999 Fakery Blvd", city="Nowhere", state="TX", postal="77449")
+
+    stats = _run(conn, post=_responder({}), get=_osm())
+
+    row = conn.execute("SELECT lat, lon, geocode_flagged FROM locations").fetchone()
+    assert (row["lat"], row["lon"]) == (None, None), "no coordinate is better than a wrong one"
+    assert row["geocode_flagged"] == 1
+    assert stats.still_dark == 1
+
+
+def test_a_row_that_already_has_coordinates_is_not_looked_up(conn):
+    _store(conn)
+    conn.execute("UPDATE locations SET lat=28.6, lon=-81.2, geocode_source='locator'")
+    conn.commit()
+
+    stats = _run(conn, post=_responder({}), get=_osm())
+
+    row = conn.execute("SELECT geocode_source FROM locations").fetchone()
+    assert row["geocode_source"] == "locator"
+    assert stats.filled == {}
+
+
+def test_a_coordinate_outside_the_us_is_flagged_but_kept(conn):
+    # A locator published a New Jersey store at 33.89,35.50 — Lebanon.
+    _store(conn, street="493 Bloomfield Ave", city="Montclair", state="NJ", postal="07042")
+    conn.execute("UPDATE locations SET lat=33.8915, lon=35.5024, geocode_source='locator'")
+    conn.commit()
+
+    stats = _run(conn, post=_responder({}), get=_osm())
+
+    row = conn.execute("SELECT lat, geocode_flagged FROM locations").fetchone()
+    assert row["geocode_flagged"] == 1
+    assert row["lat"] == 33.8915, "kept for review rather than deleted"
+    assert len(stats.flagged) == 1
+
+
+@pytest.mark.parametrize("lat, lon, expected", [
+    (42.33, -83.49, True),    # Detroit
+    (21.31, -157.86, True),   # Honolulu
+    (61.22, -149.90, True),   # Anchorage
+    (33.89, 35.50, False),    # Beirut
+    (51.51, -0.13, False),    # London
+])
+def test_us_bounds(lat, lon, expected):
+    assert geo.in_us(lat, lon) is expected
+
+
+def test_nominatim_is_asked_once_then_answered_from_cache(conn):
+    _store(conn, street="21788 Katy Freeway", city="Katy", state="TX", postal="77449")
+    calls: list[str] = []
+
+    def counting_get(url, params):
+        calls.append(params["street"])
+        return _osm({"21788 Katy Freeway": (29.78, -95.76)})(url, params)
+
+    _run(conn, post=_responder({}), get=counting_get)
+    conn.execute("UPDATE locations SET lat=NULL, lon=NULL")  # force a re-fill
+    conn.commit()
+    _run(conn, post=_responder({}), get=counting_get)
+
+    assert calls == ["21788 Katy Freeway"], "OSM must not be asked twice for one address"
+
+
+def test_a_failing_nominatim_request_costs_only_that_row(conn):
+    _store(conn, street="21788 Katy Freeway", city="Katy", state="TX", postal="77449")
+
+    def broken(url, params):
+        raise OSError("connection reset")
+
+    stats = _run(conn, post=_responder({}), get=broken)
+
+    assert stats.still_dark == 1
+    assert conn.execute("SELECT lat FROM locations").fetchone()[0] is None
+
+
 def test_a_case_only_change_is_reported_as_cosmetic(conn):
     _store(conn, street="6290 HOLLYWOOD BLVD", city="LOS ANGELES", state="CA",
            postal="90028")
     post = _responder({"6290 HOLLYWOOD BLVD": "6290 HOLLYWOOD BLVD, LOS ANGELES, CA, 90028"})
 
-    stats = geocode.run_geocode(conn, dry_run=True, post=post)
+    stats = _run(conn, dry_run=True, post=post)
 
     assert stats.cosmetic == 1
     assert stats.substantive == []

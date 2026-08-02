@@ -2,9 +2,10 @@
 
 import logging
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.live import Live
 from rich.logging import RichHandler
+from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
 from rich.spinner import Spinner
 from rich.table import Table
 
@@ -149,9 +150,22 @@ class GeocodeProgress:
     def __init__(self) -> None:
         self._order: list[str] = []
         self._counts: dict[str, dict[str, int]] = {}
+        self._coords: dict[str, int] = {}
         self._done: set[str] = set()
         self._live: Live | None = None
         self._caption: str = ""
+        # Nominatim is capped at one request a second, so this is the one
+        # stage with a wait worth showing — and a rate limit makes the
+        # estimate honest rather than decorative.
+        self._bar = Progress(
+            TextColumn("[dim]OpenStreetMap[/dim]"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+            TimeRemainingColumn(),
+            TextColumn("[dim]{task.fields[address]}[/dim]"),
+            auto_refresh=False,
+        )
+        self._task: int | None = None
 
     # --- events ---------------------------------------------------------
 
@@ -176,6 +190,25 @@ class GeocodeProgress:
         counts[verdict] = counts.get(verdict, 0) + 1
         self._refresh()
 
+    def coords(self, slug: str) -> None:
+        self._coords[slug] = self._coords.get(slug, 0) + 1
+        self._refresh()
+
+    def fallback_started(self, total: int) -> None:
+        self._task = self._bar.add_task("osm", total=total, address="")
+        self._refresh()
+
+    def fallback_step(self, address: str) -> None:
+        if self._task is not None:
+            self._bar.update(self._task, advance=1, address=address)
+            self._refresh()
+
+    def fallback_finished(self) -> None:
+        if self._task is not None:
+            self._bar.remove_task(self._task)
+            self._task = None
+        self._refresh()
+
     def finish_brand(self, slug: str) -> None:
         self._done.add(slug)
         self._refresh()
@@ -183,13 +216,13 @@ class GeocodeProgress:
     # --- rendering ------------------------------------------------------
 
     def __enter__(self) -> "GeocodeProgress":
-        self._live = Live(self.table(), console=console, refresh_per_second=12)
+        self._live = Live(self._render(), console=console, refresh_per_second=12)
         self._live.start()
         return self
 
     def __exit__(self, *exc_info) -> None:
         if self._live is not None:
-            self._live.update(self.table())
+            self._live.update(self._render())
             self._live.stop()
             self._live = None
             if not console.is_terminal:
@@ -197,7 +230,12 @@ class GeocodeProgress:
 
     def _refresh(self) -> None:
         if self._live is not None:
-            self._live.update(self.table())
+            self._live.update(self._render())
+
+    def _render(self):
+        if self._task is None:
+            return self.table()
+        return Group(self.table(), self._bar)
 
     def table(self) -> Table:
         table = Table(title="Address resolution", title_justify="left",
@@ -208,6 +246,7 @@ class GeocodeProgress:
         for verdict in geo.VERDICTS:
             table.add_column(verdict.capitalize(), justify="right",
                              style=_VERDICT_STYLE[verdict])
+        table.add_column("Coords", justify="right", style="cyan")
         table.add_column("Status")
 
         for slug in self._order:
@@ -219,11 +258,13 @@ class GeocodeProgress:
                 status = Spinner("dots", text="resolving")
             else:
                 status = "[dim]pending[/dim]"
+            filled = self._coords.get(slug, 0)
             table.add_row(
                 get_brand(slug).display_name,
                 str(total) if total else "[dim]-[/dim]",
                 *(str(counts.get(v, 0)) if counts.get(v) else "[dim]-[/dim]"
                   for v in geo.VERDICTS),
+                f"+{filled}" if filled else "[dim]-[/dim]",
                 status,
             )
         return table
@@ -281,6 +322,16 @@ def render_geocode_summary(stats) -> None:
             f"[yellow]{len(stats.collisions)} rows now duplicate another "
             f"address and were left as-is[/]"
         )
+    if stats.filled:
+        filled = ", ".join(f"{n} from {src}" for src, n in sorted(stats.filled.items()))
+        console.print(f"[cyan]coordinates: {filled}[/]")
+    if stats.still_dark:
+        console.print(
+            f"[red]{stats.still_dark} rows have no coordinates from any "
+            f"source[/] [dim](flagged; patch them in overrides.csv)[/dim]"
+        )
+    if stats.flagged:
+        console.print(f"[yellow]{len(stats.flagged)} rows flagged for review[/]")
 
 
 def render_scrape_summary(stats: RunStats, table: bool = True) -> None:

@@ -158,6 +158,64 @@ def lookup(queries: Sequence[Query], *, post: Post | None = None) -> dict[str, M
     return out
 
 
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+
+# The US, generously. Only wide enough to catch a coordinate on the wrong
+# continent — a locator published 33.89,35.50 for a store in New Jersey,
+# which is in Lebanon. The Aleutians cross into positive longitude and
+# would be flagged; a store there would be worth a second look anyway.
+US_BOUNDS = (18.9, 71.5, -179.9, -66.9)  # lat_min, lat_max, lon_min, lon_max
+
+
+def in_us(lat: float, lon: float) -> bool:
+    lat_min, lat_max, lon_min, lon_max = US_BOUNDS
+    return lat_min <= lat <= lat_max and lon_min <= lon <= lon_max
+
+
+Get = Callable[[str, dict[str, str]], str]
+
+
+def _requests_get(url: str, params: dict[str, str]) -> str:
+    import requests
+
+    response = requests.get(
+        url, params=params,
+        headers={"User-Agent": config.USER_AGENT},
+        timeout=config.TIMEOUT_S,
+    )
+    response.raise_for_status()
+    return response.text
+
+
+def nominatim_lookup(query: Query, *, get: Get | None = None) -> Match:
+    """Ask OpenStreetMap where one address is.
+
+    Coordinates only. OSM's address strings are contributed rather than
+    authoritative, so nothing here is adopted into the stored address —
+    this exists to place the rows the Census gazetteer has never heard of.
+    """
+    get = get or _requests_get
+    params = {
+        "street": query.street, "city": query.city, "state": query.state,
+        "country": "us", "format": "jsonv2", "limit": "1",
+    }
+    if query.postal:
+        params["postalcode"] = query.postal
+    try:
+        results = json.loads(get(NOMINATIM_URL, params))
+        if not results:
+            return MISS
+        hit = results[0]
+        return Match(matched=True, exact=False,
+                     lat=float(hit["lat"]), lon=float(hit["lon"]))
+    except (OSError, ValueError, KeyError, IndexError) as exc:
+        # A failed lookup is a missing coordinate, not a failed run. Kept
+        # narrow on purpose: a bare `except` here would swallow bugs and
+        # report them as addresses OpenStreetMap has never heard of.
+        log.warning("nominatim: %s (%s) — %s", query.street, query.city, exc)
+        return MISS
+
+
 #: What the geocoder's answer did to a stored address.
 VERDICTS = ("adopted", "unchanged", "inexact", "unmatched")
 

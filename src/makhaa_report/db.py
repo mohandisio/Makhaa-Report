@@ -102,6 +102,7 @@ def connect(path: Path = config.DB_PATH) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(_DDL)
     _drop_retired_columns(conn)
+    _widen_geocode_sources(conn)
     return conn
 
 
@@ -111,6 +112,33 @@ def _drop_retired_columns(conn: sqlite3.Connection) -> None:
         if column in present:
             conn.execute(f"ALTER TABLE locations DROP COLUMN {column}")
     conn.commit()
+
+
+_LOCATION_INDEXES = ("idx_locations_brand", "idx_locations_state", "idx_locations_status")
+
+
+def _widen_geocode_sources(conn: sqlite3.Connection) -> None:
+    """Rebuild locations when its geocode_source CHECK is out of date.
+
+    SQLite cannot alter a CHECK constraint, so adding a geocoder means
+    copying the table. Indexes travel with the renamed original, so they
+    are dropped first and let the DDL recreate them.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='locations'"
+    ).fetchone()
+    if row is None or _GEOSRC_LIST in row[0]:
+        return
+    columns = ",".join(_LOCATION_COLS)
+    with conn:
+        conn.execute("ALTER TABLE locations RENAME TO locations_old")
+        for index in _LOCATION_INDEXES:
+            conn.execute(f"DROP INDEX IF EXISTS {index}")
+        conn.executescript(_DDL)
+        conn.execute(
+            f"INSERT INTO locations ({columns}) SELECT {columns} FROM locations_old"
+        )
+        conn.execute("DROP TABLE locations_old")
 
 
 def sync_registry(conn: sqlite3.Connection, brands: tuple[Brand, ...],
@@ -182,6 +210,19 @@ def rekey_location(conn: sqlite3.Connection, old_uid: str, new_uid: str,
     )
     if new_uid != old_uid:
         conn.execute("UPDATE snapshots SET uid=? WHERE uid=?", (new_uid, old_uid))
+
+
+def set_coordinates(conn: sqlite3.Connection, uid: str, lat: float, lon: float,
+                    source: str) -> None:
+    conn.execute(
+        "UPDATE locations SET lat=?, lon=?, geocode_source=? WHERE uid=?",
+        (lat, lon, source, uid),
+    )
+
+
+def set_flagged(conn: sqlite3.Connection, uid: str, flagged: bool) -> None:
+    conn.execute("UPDATE locations SET geocode_flagged=? WHERE uid=?",
+                 (int(flagged), uid))
 
 
 def dump_table(conn: sqlite3.Connection, name: str) -> tuple[list[str], list[tuple]]:
