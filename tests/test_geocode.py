@@ -29,7 +29,7 @@ def _store(conn, brand="haraz", street="1737 N Alafaya Trail", city="Orlando",
     )
     now = utcnow_iso()
     loc = to_location(
-        RawLocation(brand=brand, name="Test", street=street, city=city,
+        RawLocation(brand=brand, street=street, city=city,
                     state=state, postal=postal),
         now,
     )

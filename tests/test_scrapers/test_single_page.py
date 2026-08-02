@@ -199,13 +199,11 @@ def test_mokafe_splits_name_from_address(fixture_fetch):
 
     paterson = next(r for r in rows if r.city == "Paterson")
     assert paterson.street == "1022 Main St"
-    assert paterson.name == "MOKAFÉ • Paterson, NJ"
 
-    # One store carries no colon, so the bullet separates name from
-    # address instead.
+    # One store carries no colon, so the bullet separates the label from
+    # the address instead.
     melville = next(r for r in rows if r.city == "Melville")
     assert melville.street == "606 Broadhollow Rd"
-    assert melville.name == "MOKAFÉ Long Island"
 
     # Two Brooklyn stores share Manhattan Ave; both must survive.
     manhattan_ave = [r for r in rows if r.street.endswith("Manhattan Ave")]

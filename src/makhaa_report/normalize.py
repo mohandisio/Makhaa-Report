@@ -288,6 +288,25 @@ def recase(canonical: str, original: str) -> str:
     return " ".join(out)
 
 
+_HOUSE_NUMBER = re.compile(r"^\s*(\d[\d-]*)")
+
+
+def address_key(brand: str, street: str, state: str) -> tuple[str, str, str] | None:
+    """A store's identity without the parts a correction rewrites.
+
+    The uid hashes the whole address, so it cannot match a manual entry
+    that exists precisely to fix that address. The house number and state
+    are what survive: a correction changes how a street is spelled and
+    which city it claims, not which building it is. Unique across the
+    census as it stands, and returns None when the street has no leading
+    number to key on.
+    """
+    match = _HOUSE_NUMBER.match(street)
+    if match is None:
+        return None
+    return (brand, match.group(1), normalize_state(state))
+
+
 def normalize_postal(raw: str | None) -> str | None:
     if not raw:
         return None
@@ -324,7 +343,6 @@ def to_location(raw: RawLocation, now_iso: str, *, is_manual: bool = False) -> L
     return Location(
         uid=make_uid(raw.brand, raw.street, raw.city, raw.state),
         brand=raw.brand,
-        name=raw.name.strip(),
         street=" ".join(raw.street.split()),
         city=raw.city.strip(),
         state=state,

@@ -49,7 +49,6 @@ def test_haraz_takes_coordinates_from_place_links(fixture_fetch):
 def test_haraz_trusts_the_address_over_the_heading(fixture_fetch):
     rows = scrape_haraz(fixture_fetch("haraz"))
 
-    # This store is headed "Plano" but sits in Pearland.
+    # This store is headed "Plano" but sits in Pearland; the address wins.
     pearland = next(r for r in rows if r.street == "11401 Broadway St Ste 101")
     assert pearland.city == "Pearland"
-    assert pearland.name == "Plano"

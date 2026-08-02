@@ -30,9 +30,11 @@ def test_qamaria_parses_us_cafes(fixture_fetch):
 def test_qamaria_excludes_catering_and_non_us(fixture_fetch):
     rows = scrape_qamaria(fixture_fetch("qamaria"))
 
-    # Service-area listings reuse a real cafe's address; counting them
-    # would inflate every Qamaria figure.
-    assert not any(r.name.endswith(" Area") for r in rows)
+    # Service-area listings reuse a real cafe's address — "Bay Area" and
+    # "Fremont, CA" both carry 4193 Cushing Pkwy — so one leaking through
+    # shows up as a duplicate address, not just an extra row.
+    addresses = [(r.street, r.city) for r in rows]
+    assert len(addresses) == len(set(addresses))
     # Canada, Saudi Arabia and Qatar are out of scope.
     assert {r.state for r in rows} <= set(
         "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN "
@@ -75,7 +77,9 @@ def test_qahwah_house_ignores_non_store_blocks(fixture_fetch):
 
     # The page also carries Organization and BreadcrumbList blocks.
     assert all(r.brand == "qahwah_house" for r in rows)
-    assert not any(r.name in ("Qahwah House", "Home", "Locations") for r in rows)
+    # Those blocks carry no postal address, so a leak shows up as a row
+    # with no street.
+    assert all(r.street.strip() and r.city.strip() for r in rows)
 
 
 def test_shibam_parses_cards_from_rendered_html(fixture_fetch):
@@ -104,7 +108,7 @@ def test_shibam_reads_status_from_prose(fixture_fetch):
 def test_shibam_trusts_the_address_over_the_heading(fixture_fetch):
     rows = scrape_shibam(fixture_fetch("shibam"))
 
-    # Headings are regional labels: this one is headed "CLEVELAND, OH".
+    # Headings are regional labels: this card is headed "CLEVELAND, OH"
+    # but the address is the truth.
     north_olmsted = next(r for r in rows if r.street == "26745 Brookpark Ext")
     assert north_olmsted.city == "North Olmsted"
-    assert north_olmsted.name == "CLEVELAND, OH"

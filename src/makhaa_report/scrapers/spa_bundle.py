@@ -68,7 +68,6 @@ def scrape_port(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="port",
-                name=fields.get("name", "").strip() or city,
                 street=street,
                 city=city,
                 state=state,
@@ -108,7 +107,6 @@ def scrape_qishr(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="qishr",
-                name=city,
                 street=street,
                 city=city,
                 state=state,

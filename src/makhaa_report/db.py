@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS exclusions (
 CREATE TABLE IF NOT EXISTS locations (
     uid TEXT PRIMARY KEY,
     brand TEXT NOT NULL REFERENCES brands(slug),
-    name TEXT NOT NULL, street TEXT NOT NULL, city TEXT NOT NULL,
+    street TEXT NOT NULL, city TEXT NOT NULL,
     state TEXT NOT NULL, postal TEXT,
     lat REAL, lon REAL,
     geocode_source TEXT CHECK (geocode_source IN ({_GEOSRC_LIST})),
@@ -68,7 +68,7 @@ _LOCATION_COLS = tuple(
 
 # Fields a fresh scrape may overwrite on an existing row. first_seen is
 # never touched; coordinates only when the incoming row carries its own.
-_MUTABLE = ("name", "postal", "status", "status_note", "phone", "hours",
+_MUTABLE = ("postal", "status", "status_note", "phone", "hours",
             "source_url", "is_manual", "last_seen")
 
 _UPSERT = (
@@ -86,7 +86,7 @@ _UPSERT = (
 # Columns an older database may still carry. CREATE TABLE IF NOT EXISTS
 # leaves an existing table alone, so dropping a column from _DDL is not
 # enough on its own.
-_RETIRED_LOCATION_COLS = ("county", "tract", "cbsa")
+_RETIRED_LOCATION_COLS = ("county", "tract", "cbsa", "name")
 
 # Canonical row order for exports — keeps weekly git diffs readable.
 _DUMP_ORDER = {

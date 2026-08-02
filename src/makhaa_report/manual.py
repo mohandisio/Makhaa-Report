@@ -18,12 +18,12 @@ from typing import Literal
 
 from . import config
 from .models import Location, RawLocation
-from .normalize import to_location
+from .normalize import address_key, to_location
 
 log = logging.getLogger("makhaa")
 
 MANUAL_FIELDS = (
-    "name", "street", "city", "state", "postal", "status", "status_note",
+    "street", "city", "state", "postal", "status", "status_note",
     "lat", "lon", "phone", "hours", "source_url",
 )
 
@@ -43,7 +43,6 @@ def raw_from_record(brand: str, rec: dict[str, str], fragment: str) -> RawLocati
     """One conversion from a str-dict (CSV row or override cells) to RawLocation."""
     return RawLocation(
         brand=brand,
-        name=(rec.get("name") or "").strip(),
         street=(rec.get("street") or "").strip(),
         city=(rec.get("city") or "").strip(),
         state=(rec.get("state") or "").strip(),
@@ -185,7 +184,7 @@ def append_entry(record: dict[str, str], manual_dir: Path | None = None) -> Path
 
 
 _MERGEABLE = (
-    "name", "street", "city", "state", "postal", "status", "status_note",
+    "street", "city", "state", "postal", "status", "status_note",
     "lat", "lon", "phone", "hours", "source_url",
 )
 
@@ -199,20 +198,23 @@ def _find_target(
 ) -> str | None:
     """The scraped row a manual entry is correcting, if there is one.
 
-    The uid is a hash of the address, so an entry that fixes a wrong
+    The uid is a hash of the whole address, so an entry that fixes a wrong
     address cannot match on it — that is the whole point of the entry.
-    Name and phone are what survive a corrected address, so they are
-    tried next, and only when they identify exactly one row.
+    The house number and state survive a correction, since what gets
+    rewritten is how a street is spelled and which city it claims, not
+    which building it is. Phone is the last resort, for when the house
+    number itself was mistyped. Each is used only when it identifies
+    exactly one row.
     """
     if entry.uid in locations:
         return entry.uid
 
     candidates: list[str] = []
-    if raw.name.strip():
-        wanted = raw.name.casefold().strip()
+    wanted_key = address_key(raw.brand, raw.street, raw.state)
+    if wanted_key is not None:
         candidates = [
             uid for uid, loc in locations.items()
-            if loc.brand == raw.brand and loc.name.casefold().strip() == wanted
+            if address_key(loc.brand, loc.street, loc.state) == wanted_key
         ]
     if len(candidates) != 1 and _digits(raw.phone):
         wanted_phone = _digits(raw.phone)

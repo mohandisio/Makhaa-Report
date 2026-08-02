@@ -59,7 +59,6 @@ def scrape_moka_and_co(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="moka_and_co",
-                name=title.get_text(strip=True) if title else city,
                 street=street,
                 city=city,
                 state=state,
@@ -113,7 +112,6 @@ def scrape_arwa(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="arwa",
-                name=heading.get_text(" ", strip=True) if heading else city,
                 street=street,
                 city=city,
                 state=state,
@@ -172,7 +170,6 @@ def scrape_matari(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="matari",
-                name=heading.get_text(strip=True) if heading else city,
                 street=street,
                 city=city,
                 state=state,
@@ -230,7 +227,6 @@ def scrape_delah(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="delah",
-                name=label.strip() or city,
                 street=street,
                 city=city,
                 state=state,
@@ -298,7 +294,6 @@ def scrape_qatra(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="qatra",
-                name=city,
                 street=street,
                 city=city,
                 state=state,
@@ -349,7 +344,6 @@ def scrape_heyma(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="heyma",
-                name=city,
                 street=street,
                 city=city,
                 state=state,
@@ -418,7 +412,6 @@ def scrape_caffeena(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="caffeena",
-                name=heading.get_text(" ", strip=True) if heading else city,
                 street=street,
                 city=city,
                 state=state,
@@ -470,7 +463,6 @@ def scrape_mokafe(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="mokafe",
-                name=name.strip() or city,
                 street=street,
                 city=city,
                 state=state,
@@ -533,7 +525,6 @@ def scrape_sanaa_cafe(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="sanaa_cafe",
-                name=heading.get_text(" ", strip=True) if heading else city,
                 street=street,
                 city=city,
                 state=state,
@@ -584,7 +575,6 @@ def scrape_socotra(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="socotra",
-                name=city,
                 street=street,
                 city=city,
                 state=state,
@@ -629,7 +619,6 @@ def scrape_mochabox(fetch: Fetch) -> list[RawLocation]:
             return [
                 RawLocation(
                     brand="mochabox",
-                    name=city,
                     street=street,
                     city=city,
                     state=state,
@@ -675,7 +664,6 @@ def _single_page_stores(
         rows.append(
             RawLocation(
                 brand=brand,
-                name=city,
                 street=street,
                 city=city,
                 state=state,

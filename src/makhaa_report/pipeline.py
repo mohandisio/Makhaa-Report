@@ -120,10 +120,11 @@ def run_scrape(
         loc = to_location(raw, now)
         if loc.uid in locations:
             log.warning(
-                "uid collision: %s '%s' collides with '%s' — keeping first. "
-                "Two stores normalizing to one address means the normalizer "
-                "or the locator is wrong.",
-                loc.uid, loc.name, locations[loc.uid].name,
+                "uid collision: %s '%s, %s' collides with '%s, %s' — keeping "
+                "first. Two stores normalizing to one address means the "
+                "normalizer or the locator is wrong.",
+                loc.uid, loc.street, loc.city,
+                locations[loc.uid].street, locations[loc.uid].city,
             )
             continue
         locations[loc.uid] = loc

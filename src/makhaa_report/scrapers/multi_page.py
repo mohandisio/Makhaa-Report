@@ -78,7 +78,6 @@ def scrape_haraz(fetch: Fetch) -> list[RawLocation]:
             rows.append(
                 RawLocation(
                     brand="haraz",
-                    name=heading.get_text(strip=True) if heading else city,
                     street=street,
                     city=city,
                     state=state,
@@ -140,7 +139,6 @@ def scrape_original_mocha(fetch: Fetch) -> list[RawLocation]:
             rows.append(
                 RawLocation(
                     brand="original_mocha",
-                    name=city,
                     street=street,
                     city=city,
                     state=state,

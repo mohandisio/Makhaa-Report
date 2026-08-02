@@ -52,7 +52,6 @@ def scrape_qamaria(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="qamaria",
-                name=(record.get("name") or "").strip(),
                 street=street,
                 city=city,
                 state=state,
@@ -116,7 +115,6 @@ def scrape_qahwah_house(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="qahwah_house",
-                name=record.get("name", "").strip(),
                 street=street,
                 city=city,
                 state=state,
@@ -184,7 +182,6 @@ def scrape_shibam(fetch: Fetch) -> list[RawLocation]:
         rows.append(
             RawLocation(
                 brand="shibam",
-                name=heading.get_text(" ", strip=True) if heading else city,
                 street=street,
                 city=city,
                 state=state,

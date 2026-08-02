@@ -17,7 +17,6 @@ class RawLocation:
     """Scraper or manual-CSV output, pre-normalization."""
 
     brand: str
-    name: str
     street: str
     city: str
     state: str
@@ -38,7 +37,6 @@ class Location:
 
     uid: str
     brand: str
-    name: str
     street: str
     city: str
     state: str

@@ -17,7 +17,6 @@ def test_parse_entry_accepts_key_value_and_json():
 def test_append_entry_writes_a_loadable_row(tmp_path):
     record = {
         "brand": "mohka_house",
-        "name": "Test Store",
         "street": "1 Example St",
         "city": "Oakland",
         "state": "CA",
