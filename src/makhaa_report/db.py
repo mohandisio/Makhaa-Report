@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS locations (
     status_note TEXT, phone TEXT, hours TEXT,
     source_url TEXT, is_manual INTEGER NOT NULL DEFAULT 0,
     first_seen TEXT NOT NULL, last_seen TEXT NOT NULL,
+    opened_date TEXT, opened_confidence TEXT, opened_source TEXT,
     UNIQUE (brand, street, city, state)
 );
 CREATE INDEX IF NOT EXISTS idx_locations_brand ON locations(brand);
@@ -88,6 +89,16 @@ _UPSERT = (
 # enough on its own.
 _RETIRED_LOCATION_COLS = ("county", "tract", "cbsa", "name")
 
+# Columns added after a database was first created. CREATE TABLE IF NOT
+# EXISTS leaves an existing table alone, so a new column in _DDL never
+# reaches an older file and every INSERT naming it fails. Each entry is
+# (name, type) and is added when absent.
+_ADDED_LOCATION_COLS = (
+    ("opened_date", "TEXT"),
+    ("opened_confidence", "TEXT"),
+    ("opened_source", "TEXT"),
+)
+
 # Canonical row order for exports — keeps weekly git diffs readable.
 _DUMP_ORDER = {
     "locations": "brand, state, city, street",
@@ -105,6 +116,9 @@ def connect(path: Path = config.DB_PATH) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(_DDL)
     _drop_retired_columns(conn)
+    # Before _widen_geocode_sources: its rebuild selects _LOCATION_COLS,
+    # so every column named there has to exist first.
+    _add_missing_columns(conn)
     _widen_geocode_sources(conn)
     _rekey_stale_uids(conn)
     return conn
@@ -156,6 +170,15 @@ def _drop_retired_columns(conn: sqlite3.Connection) -> None:
     for column in _RETIRED_LOCATION_COLS:
         if column in present:
             conn.execute(f"ALTER TABLE locations DROP COLUMN {column}")
+    conn.commit()
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    present = {r["name"] for r in conn.execute("PRAGMA table_info(locations)")}
+    for column, sql_type in _ADDED_LOCATION_COLS:
+        if column not in present:
+            conn.execute(f"ALTER TABLE locations ADD COLUMN {column} {sql_type}")
+            log.info("added locations.%s", column)
     conn.commit()
 
 

@@ -521,3 +521,37 @@ def test_a_case_only_change_is_reported_as_cosmetic(conn):
 
     assert stats.cosmetic == 1
     assert stats.substantive == []
+
+
+def test_a_rescrape_leaves_the_opening_date_alone(conn):
+    """Opening dates come from permit records, not the locator.
+
+    A scrape knows nothing about them, so its row carries None. If that
+    None reached the table the date would vanish on the next run, and
+    nothing outside data/opening_dates.csv could bring it back.
+    """
+    uid = _store(conn)
+    conn.execute(
+        "UPDATE locations SET opened_date=?, opened_confidence=?, opened_source=?"
+        " WHERE uid=?",
+        ("2024-03", "confirmed", "tx_comptroller", uid),
+    )
+    conn.commit()
+
+    scraped = to_location(
+        RawLocation(brand="haraz", street="1737 N Alafaya Trail", city="Orlando",
+                    state="FL", postal="32826", phone="555-0100"),
+        utcnow_iso(),
+    )
+    assert scraped.opened_date is None, "a scraped row should not invent a date"
+    db.upsert_location(conn, scraped)
+    conn.commit()
+
+    row = conn.execute(
+        "SELECT opened_date, opened_confidence, opened_source, phone"
+        " FROM locations WHERE uid=?", (uid,)
+    ).fetchone()
+    assert row["opened_date"] == "2024-03"
+    assert row["opened_confidence"] == "confirmed"
+    assert row["opened_source"] == "tx_comptroller"
+    assert row["phone"] == "555-0100", "the scrape should still update what it owns"

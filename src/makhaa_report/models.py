@@ -53,6 +53,13 @@ class Location:
     is_manual: bool
     first_seen: str
     last_seen: str
+    # When the store opened, as YYYY-MM. Sourced from permit and licence
+    # records, never from a scrape, so a re-scrape must leave it alone —
+    # that is why these are absent from db._MUTABLE. Accurate to about a
+    # month: the underlying records date a permit, not a first coffee.
+    opened_date: str | None = None
+    opened_confidence: str | None = None  # confirmed | high | medium | low
+    opened_source: str | None = None
     fragment: str = ""  # transient; persisted only via snapshots
 
 
