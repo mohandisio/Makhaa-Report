@@ -223,11 +223,22 @@ def append_entry(record: dict[str, str], manual_dir: Path | None = None) -> Path
     manual_dir.mkdir(parents=True, exist_ok=True)
     path = manual_dir / f"{brand}.csv"
     is_new = not path.exists()
+    # Follow the header the file already has. Some were written while
+    # `name` was still a column, and appending MANUAL_FIELDS to one of
+    # those shifts every value a column left — the street lands in the
+    # name, the postal in the state. load_manual_brands reads by header
+    # too, so a shifted row is silently wrong rather than rejected.
+    columns = list(MANUAL_FIELDS)
+    if not is_new:
+        with open(path, newline="", encoding="utf-8") as f:
+            header = next(csv.reader(f), None)
+        if header:
+            columns = header
     with open(path, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(MANUAL_FIELDS))
+        writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
         if is_new:
             writer.writeheader()
-        writer.writerow({k: record.get(k, "") for k in MANUAL_FIELDS})
+        writer.writerow({k: record.get(k, "") for k in columns})
     return path
 
 
