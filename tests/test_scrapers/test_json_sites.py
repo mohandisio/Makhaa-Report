@@ -4,7 +4,6 @@ When a brand redesigns its locator: re-save the fixture, fix the scraper,
 and update the expectations here.
 """
 
-from makhaa_report.registry import get_brand
 from makhaa_report.scrapers.json_sites import (
     scrape_qahwah_house,
     scrape_qamaria,
@@ -15,8 +14,7 @@ from makhaa_report.scrapers.json_sites import (
 def test_qamaria_parses_us_cafes(fixture_fetch):
     rows = scrape_qamaria(fixture_fetch("qamaria"))
 
-    low, high = get_brand("qamaria").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 51
 
     allen_park = next(r for r in rows if r.city == "Allen Park")
     assert allen_park.street == "7706 Allen Rd"
@@ -46,8 +44,7 @@ def test_qamaria_excludes_catering_and_non_us(fixture_fetch):
 def test_qahwah_house_reads_structured_data(fixture_fetch):
     rows = scrape_qahwah_house(fixture_fetch("qahwah_house"))
 
-    low, high = get_brand("qahwah_house").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 26
 
     # Every store publishes coordinates, so none of these need geocoding.
     assert all(r.lat is not None and r.lon is not None for r in rows)
@@ -85,8 +82,7 @@ def test_qahwah_house_ignores_non_store_blocks(fixture_fetch):
 def test_shibam_parses_cards_from_rendered_html(fixture_fetch):
     rows = scrape_shibam(fixture_fetch("shibam"))
 
-    low, high = get_brand("shibam").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 20
 
     dearborn = next(r for r in rows if r.street == "5461 Schaefer Rd")
     assert dearborn.city == "Dearborn"

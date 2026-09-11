@@ -69,7 +69,6 @@ class Brand:
     display_name: str
     locator_url: str
     method: Literal["scrape", "manual"]
-    band: tuple[int, int]  # inclusive expected row-count range
     franchises: bool = False
     hq: str = ""
     alt_domains: tuple[str, ...] = ()
@@ -85,7 +84,7 @@ class Exclusion:
     related_brand: str | None = None
 
 
-BrandOutcome = Literal["ok", "drift", "error", "no_scraper"]
+BrandOutcome = Literal["ok", "error", "no_scraper"]
 
 
 @dataclass(frozen=True)
@@ -114,4 +113,4 @@ class RunStats:
 
     @property
     def brands_failed(self) -> list[str]:
-        return [r.slug for r in self.results if r.outcome in ("drift", "error")]
+        return [r.slug for r in self.results if r.outcome == "error"]

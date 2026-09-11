@@ -1,10 +1,8 @@
-"""Brand registry: the 14 known chains, drift bands, and lookalike exclusions.
+"""Brand registry: the known chains and the lookalikes to keep out.
 
-Bands are guardrails, not counts. They exist to catch a scrape that has
-gone wrong, and are reset from what the scraper actually returns — never
-from a number read off a website by hand, which is stale the moment it is
-written. The scrape is the source of truth for how many stores a brand has;
-nothing in this file should claim to know that.
+Nothing here claims to know how many stores a brand has. The scrape is
+the source of truth for that, and a count written by hand is stale the
+moment it is written.
 
 Notes record structure and traps: where the data lives, what has to be
 excluded, what the locator cannot tell us.
@@ -18,7 +16,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Haraz Coffee House",
         locator_url="https://harazcoffeehouse.com",
         method="scrape",
-        band=(55, 75),
         franchises=True,
         notes=(
             "One /pages/<state>-locations page per state, discovered from "
@@ -34,7 +31,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Qamaria Yemeni Coffee",
         locator_url="https://www.qamariacoffee.com/cafes",
         method="scrape",
-        band=(44, 60),
         franchises=True,
         notes=(
             "Storepoint map widget; data comes from its API, not Squarespace. "
@@ -48,7 +44,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Qahwah House",
         locator_url="https://qahwahhouse.com/locations",
         method="scrape",
-        band=(24, 35),
         notes=(
             "One schema.org CafeOrCoffeeShop block per store on the "
             "locations page, with coordinates, phone and hours; the "
@@ -63,7 +58,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Moka & Co",
         locator_url="https://mokanco.com/locations/",
         method="scrape",
-        band=(35, 50),
         notes=(
             "WordPress; /pages/locations redirects to /locations/. Every "
             "address is on that one page, so the per-store detail pages at "
@@ -76,7 +70,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Shibam Coffee Co.",
         locator_url="https://shibamcoffee.com",
         method="scrape",
-        band=(18, 26),
         notes=(
             "WP REST /wp-json/wp/v2/pages?slug=our-locations returns the "
             "page as rendered HTML. Card headings are regional labels "
@@ -90,7 +83,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Arwa Yemeni Coffee",
         locator_url="https://arwacoffee.com/locations/",
         method="scrape",
-        band=(10, 18),
         notes=(
             "WordPress; one section per store with an embedded Google "
             "map the coordinates come from. Contact paragraphs run "
@@ -103,7 +95,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Matari Coffee",
         locator_url="https://mataricoffee.com/locations",
         method="scrape",
-        band=(6, 12),
         notes=(
             "One card per store. The Mississauga store is Canadian and "
             "falls out of the US address parse without special-casing. "
@@ -120,7 +111,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Delah Coffee",
         locator_url="https://delahcoffee.com/locations/",
         method="scrape",
-        band=(5, 10),
         notes=(
             "Elementor; per-store blocks carry no usable classes and "
             "two render inside embedded Google widgets, so the icon "
@@ -135,7 +125,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Qatra Coffee",
         locator_url="https://qatracoffee.com/",
         method="scrape",
-        band=(2, 6),
         notes=(
             "qatracoffee.com is the Yemeni brand — NOT qatracafe.com "
             "(see exclusions). There is no locations page; /locations "
@@ -149,7 +138,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Heyma",
         locator_url="https://www.heymacoffeeca.com/locations",
         method="scrape",
-        band=(1, 4),
         notes=(
             "Each store is a Google directions link whose text is the "
             "address and whose href carries the coordinates. Headings "
@@ -162,7 +150,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Caffeena Coffee House",
         locator_url="https://caffeena.com/locations",
         method="scrape",
-        band=(1, 8),
         notes=(
             "The page is split into \"Now Open Locations\" and \"Coming "
             "Soon Locations\" sections, so status comes from walking "
@@ -176,7 +163,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="MOKAFÉ",
         locator_url="https://mymokafe.com/pages/locations",
         method="scrape",
-        band=(8, 14),
         notes=(
             "Each store is one bold line combining name and address, "
             "split on the colon or, failing that, the bullet. The site "
@@ -191,14 +177,14 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Port Coffee Co.",
         locator_url="https://portcoffeeco.com",
         method="scrape",
-        band=(4, 12),
         hq="Louisiana",
         notes=(
             "Single-page app: the shell HTML is empty, but the store "
             "records live in the JS bundle it loads, with a status "
             "field and Maps place links carrying coordinates. Fragile "
             "by nature — a rebuild that changes how the data is "
-            "written breaks the parse, and the band is what catches it."
+            "written breaks the parse, and nothing but the fixture "
+            "test will say so."
         ),
     ),
     Brand(
@@ -206,12 +192,11 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Qishr Coffee House",
         locator_url="https://qishrcoffeehouse.co",
         method="scrape",
-        band=(1, 5),
         notes=(
             "Single-page app with no store list — the one cafe's "
             "address is inlined in the footer markup, so it arrives as "
             "two adjacent string literals in the JS bundle. Fragile by "
-            "nature; the band is what catches a rebuild."
+            "nature: a rebuild breaks the parse silently."
         ),
     ),
     Brand(
@@ -219,7 +204,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="House of Mokhah",
         locator_url="https://www.houseofmokhaycc.com/cafes",
         method="scrape",
-        band=(1, 5),
         notes=(
             "Squarespace; the address sits in one element with the "
             "street and city line as separate text nodes. A further "
@@ -232,7 +216,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Biladi Coffee House",
         locator_url="https://biladicoffeehouse.com",
         method="scrape",
-        band=(1, 6),
         franchises=True,
         notes=(
             "Elementor; addresses carry a pipe-separated label prefix, "
@@ -244,7 +227,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Original Mocha",
         locator_url="https://originalmocha.com",
         method="scrape",
-        band=(1, 8),
         franchises=True,
         notes=(
             "WordPress with a page per store. The sitemap omits them "
@@ -258,7 +240,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Queen Yemeni Coffee",
         locator_url="https://queencoffeehouse.com",
         method="scrape",
-        band=(1, 5),
         notes="Elementor; a middot separates street from city.",
     ),
     Brand(
@@ -266,7 +247,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Socotra Coffee House",
         locator_url="https://socotracoffeehouse.framer.website",
         method="scrape",
-        band=(1, 4),
         notes="Framer, but server-rendered; the address sits whole in a map link.",
     ),
     Brand(
@@ -274,7 +254,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="MochaBox Coffee",
         locator_url="https://mochaboxcoffee.com",
         method="scrape",
-        band=(1, 4),
         notes=(
             "Wix, with street and city in separate elements. Publishes "
             "a six-digit postcode, which is dropped rather than "
@@ -286,7 +265,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Mohka House",
         locator_url="",
         method="manual",
-        band=(0, 5),
         hq="Oakland, CA",
         notes=(
             "No website of its own — only a Yelp listing, which is a "
@@ -299,7 +277,6 @@ BRANDS: tuple[Brand, ...] = (
         display_name="Sana'a Cafe",
         locator_url="https://thesanaacafe.com",
         method="scrape",
-        band=(4, 12),
         alt_domains=("sanaahousecafe.com",),
         notes=(
             "Divi blurbs in runs of four: heading, address, phone, hours. "

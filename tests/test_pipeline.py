@@ -1,5 +1,4 @@
-"""Scrape-twice idempotency and drift quarantine — the two invariants
-worth automating (spec Done-when #2 and #4)."""
+"""Scrape-twice idempotency, and what happens when a scraper misbehaves."""
 
 import sqlite3
 
@@ -55,21 +54,42 @@ def test_scrape_twice_locations_unchanged(conn, manual_csv):
     assert s1.run_id != s2.run_id
 
 
-def test_drift_quarantines_brand_only(conn, manual_csv, monkeypatch):
-    too_few = [
+def test_a_short_scrape_is_written_not_rejected(conn, manual_csv, monkeypatch):
+    """Whatever a scraper returns is what the brand has that run.
+
+    There is no expected row count to measure against: a count in range
+    proves nothing about whether the rows are the right rows. A scraper
+    that returns one store writes one store, and the sixty it did not
+    return keep their old last_seen rather than being deleted.
+    """
+    one_row = [
         RawLocation(brand="haraz", street="1 Test St",
                     city="Dearborn", state="MI", status="open")
     ]
-    monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: too_few)
+    monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: one_row)
 
     stats = pipeline.run_scrape(conn, fetch=_fetch_never_called)
 
-    assert "haraz" in stats.brands_failed  # 1 row vs band (55, 75)
+    assert "haraz" not in stats.brands_failed
     haraz_rows = conn.execute(
         "SELECT COUNT(*) FROM locations WHERE brand='haraz'"
     ).fetchone()[0]
-    assert haraz_rows == 0  # quarantined: nothing written
-    assert stats.total_rows == 1  # manual brand still landed
+    assert haraz_rows == 1
+
+
+def test_a_raising_scraper_fails_the_brand_and_writes_nothing(conn, manual_csv, monkeypatch):
+    def broken(fetch):
+        raise RuntimeError("locator rebuilt")
+
+    monkeypatch.setitem(pipeline.SCRAPERS, "haraz", broken)
+
+    stats = pipeline.run_scrape(conn, fetch=_fetch_never_called)
+
+    assert "haraz" in stats.brands_failed
+    haraz_rows = conn.execute(
+        "SELECT COUNT(*) FROM locations WHERE brand='haraz'"
+    ).fetchone()[0]
+    assert haraz_rows == 0
 
 
 def test_manual_entry_replaces_a_scraped_row(conn, manual_csv, monkeypatch):
@@ -86,7 +106,7 @@ def test_manual_entry_replaces_a_scraped_row(conn, manual_csv, monkeypatch):
                 state="CA", postal="94610", status="open",
                 status_note="checked by hand")
 
-    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
+    pipeline.run_scrape(conn, fetch=_fetch_never_called)
 
     row = conn.execute(
         "SELECT status_note, is_manual FROM locations WHERE brand='haraz'"
@@ -101,7 +121,7 @@ def test_manual_entry_replaces_a_scraped_row(conn, manual_csv, monkeypatch):
 def _run_with(conn, monkeypatch, manual_dir, scraped_rows, **entry):
     monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: scraped_rows)
     _manual_csv(manual_dir / "haraz.csv", **entry)
-    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
+    pipeline.run_scrape(conn, fetch=_fetch_never_called)
     return conn.execute("SELECT * FROM locations WHERE brand='haraz'").fetchall()
 
 
@@ -200,7 +220,7 @@ def test_an_override_correction_survives_a_second_scrape(conn, manual_csv, monke
     the old uid instead collides on UNIQUE (brand, street, city, state).
     """
     monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: [SCRAPED])
-    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
+    pipeline.run_scrape(conn, fetch=_fetch_never_called)
     scraped_uid = conn.execute(
         "SELECT uid FROM locations WHERE brand='haraz'"
     ).fetchone()["uid"]
@@ -213,8 +233,8 @@ def test_an_override_correction_survives_a_second_scrape(conn, manual_csv, monke
         + ",".join(cells.get(c, "") for c in columns) + "\n"
     )
 
-    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
-    pipeline.run_scrape(conn, fetch=_fetch_never_called, allow_drift=True)
+    pipeline.run_scrape(conn, fetch=_fetch_never_called)
+    pipeline.run_scrape(conn, fetch=_fetch_never_called)
 
     rows = conn.execute(
         "SELECT uid, street, city FROM locations WHERE brand='haraz'"

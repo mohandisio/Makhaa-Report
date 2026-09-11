@@ -4,8 +4,8 @@ The page itself is an empty shell — no links, no text — but the store
 data ships inside the JavaScript bundle it loads. Reading the bundle
 avoids needing a browser at the cost of parsing minified source, so
 these scrapers are the most fragile in the set: a rebuild that changes
-how the data is written will break them, and the row-count band is what
-catches that.
+how the data is written will break them, and the break is silent until
+somebody reads the rows.
 """
 
 import logging

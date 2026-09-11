@@ -14,15 +14,19 @@ log = logging.getLogger("makhaa")
 _STATUS_LIST = ",".join(f"'{s}'" for s in STATUSES)
 _GEOSRC_LIST = ",".join(f"'{s}'" for s in GEOCODE_SOURCES)
 
-_DDL = f"""
+# Named on its own because the band-column migration recreates this one
+# table under a scratch name.
+_BRANDS_DDL = """
 CREATE TABLE IF NOT EXISTS brands (
     slug TEXT PRIMARY KEY, display_name TEXT NOT NULL, locator_url TEXT NOT NULL,
     method TEXT NOT NULL CHECK (method IN ('scrape','manual')),
-    band_low INTEGER NOT NULL, band_high INTEGER NOT NULL,
     franchises INTEGER NOT NULL DEFAULT 0, hq TEXT,
     alt_domains TEXT,
     notes TEXT
-);
+)"""
+
+_DDL = f"""
+{_BRANDS_DDL};
 CREATE TABLE IF NOT EXISTS exclusions (
     domain TEXT PRIMARY KEY, reason TEXT NOT NULL,
     related_brand TEXT REFERENCES brands(slug)
@@ -116,6 +120,7 @@ def connect(path: Path = config.DB_PATH) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(_DDL)
     _drop_retired_columns(conn)
+    _drop_band_columns(conn)
     # Before _widen_geocode_sources: its rebuild selects _LOCATION_COLS,
     # so every column named there has to exist first.
     _add_missing_columns(conn)
@@ -209,19 +214,63 @@ def _widen_geocode_sources(conn: sqlite3.Connection) -> None:
         conn.execute("DROP TABLE locations_old")
 
 
+_BRAND_COLS = ("slug", "display_name", "locator_url", "method",
+               "franchises", "hq", "alt_domains", "notes")
+
+
+def _drop_band_columns(conn: sqlite3.Connection) -> None:
+    """Rebuild brands when it still carries the retired band columns.
+
+    They are NOT NULL, so an INSERT that does not name them fails against
+    an older file. Nothing reads a band any more: how many stores a brand
+    has is whatever the scrape returned.
+
+    exclusions.related_brand points at this table, so the rebuild runs the
+    documented SQLite recipe: foreign keys off, copy into a new table, swap
+    the names, check the references, foreign keys back on. legacy_alter_table
+    keeps the rename from rewriting that reference to the scratch name.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='brands'"
+    ).fetchone()
+    if row is None or "band_low" not in row[0]:
+        return
+    columns = ",".join(_BRAND_COLS)
+    conn.commit()  # pragmas below cannot take effect inside a transaction
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("PRAGMA legacy_alter_table = ON")
+    try:
+        conn.execute("BEGIN")
+        conn.execute(_BRANDS_DDL.replace("brands", "brands_new", 1))
+        conn.execute(
+            f"INSERT INTO brands_new ({columns}) SELECT {columns} FROM brands"
+        )
+        conn.execute("DROP TABLE brands")
+        conn.execute("ALTER TABLE brands_new RENAME TO brands")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA legacy_alter_table = OFF")
+        conn.execute("PRAGMA foreign_keys = ON")
+    broken = conn.execute("PRAGMA foreign_key_check").fetchall()
+    if broken:
+        raise RuntimeError(f"dropping the band columns broke a reference: {broken}")
+
+
 def sync_registry(conn: sqlite3.Connection, brands: tuple[Brand, ...],
                   exclusions: tuple[Exclusion, ...]) -> None:
     for b in brands:
         conn.execute(
-            """INSERT INTO brands (slug, display_name, locator_url, method, band_low,
-                                   band_high, franchises, hq, alt_domains, notes)
-               VALUES (?,?,?,?,?,?,?,?,?,?)
+            """INSERT INTO brands (slug, display_name, locator_url, method,
+                                   franchises, hq, alt_domains, notes)
+               VALUES (?,?,?,?,?,?,?,?)
                ON CONFLICT(slug) DO UPDATE SET
                  display_name=excluded.display_name, locator_url=excluded.locator_url,
-                 method=excluded.method, band_low=excluded.band_low,
-                 band_high=excluded.band_high, franchises=excluded.franchises,
+                 method=excluded.method, franchises=excluded.franchises,
                  hq=excluded.hq, alt_domains=excluded.alt_domains, notes=excluded.notes""",
-            (b.slug, b.display_name, b.locator_url, b.method, b.band[0], b.band[1],
+            (b.slug, b.display_name, b.locator_url, b.method,
              b.franchises, b.hq, json.dumps(list(b.alt_domains)), b.notes),
         )
     for e in exclusions:

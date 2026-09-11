@@ -4,7 +4,6 @@ When a brand redesigns its locator: re-save the fixture, fix the scraper,
 and update the expectations here.
 """
 
-from makhaa_report.registry import get_brand
 from makhaa_report.scrapers.single_page import (
     scrape_arwa,
     scrape_caffeena,
@@ -21,8 +20,7 @@ from makhaa_report.scrapers.single_page import (
 def test_moka_parses_open_and_coming_soon(fixture_fetch):
     rows = scrape_moka_and_co(fixture_fetch("moka_and_co"))
 
-    low, high = get_brand("moka_and_co").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 41
     assert {r.status for r in rows} == {"open", "coming_soon"}
 
     dearborn = next(r for r in rows if r.city == "Dearborn")
@@ -50,8 +48,7 @@ def test_moka_deduplicates_and_skips_hq_block(fixture_fetch):
 def test_arwa_parses_sections_with_coordinates(fixture_fetch):
     rows = scrape_arwa(fixture_fetch("arwa"))
 
-    low, high = get_brand("arwa").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 12
 
     # Every store embeds a map, so none of these need geocoding.
     assert all(r.lat is not None and r.lon is not None for r in rows)
@@ -75,8 +72,7 @@ def test_arwa_handles_a_spelled_out_state(fixture_fetch):
 def test_matari_parses_open_and_announced_stores(fixture_fetch):
     rows = scrape_matari(fixture_fetch("matari"))
 
-    low, high = get_brand("matari").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 11
 
     skokie = next(r for r in rows if r.city == "Skokie")
     assert skokie.street == "8800 Gross Point Rd"
@@ -106,8 +102,7 @@ def test_matari_skips_markets_announced_without_an_address(fixture_fetch):
 def test_delah_reads_the_icon_list(fixture_fetch):
     rows = scrape_delah(fixture_fetch("delah"))
 
-    low, high = get_brand("delah").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 7
 
     # Phone, email and social entries share the same markup and must not
     # become stores.
@@ -134,8 +129,7 @@ def test_delah_takes_coordinates_only_from_place_links(fixture_fetch):
 def test_qatra_deduplicates_addresses_repeated_across_the_page(fixture_fetch):
     rows = scrape_qatra(fixture_fetch("qatra"))
 
-    low, high = get_brand("qatra").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 3
 
     addresses = [(r.street, r.city) for r in rows]
     assert len(addresses) == len(set(addresses))
@@ -160,8 +154,7 @@ def test_qatra_takes_coordinates_from_the_schema_block(fixture_fetch):
 def test_heyma_reads_address_and_coordinates_from_the_map_link(fixture_fetch):
     rows = scrape_heyma(fixture_fetch("heyma"))
 
-    low, high = get_brand("heyma").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 2
     assert all(r.lat is not None for r in rows)
 
     berkeley = next(r for r in rows if r.city == "Berkeley")
@@ -177,8 +170,7 @@ def test_heyma_reads_address_and_coordinates_from_the_map_link(fixture_fetch):
 def test_caffeena_reads_status_from_the_section_heading(fixture_fetch):
     rows = scrape_caffeena(fixture_fetch("caffeena"))
 
-    low, high = get_brand("caffeena").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 7
 
     # One trading store, the rest announced under "Coming Soon Locations".
     open_rows = [r for r in rows if r.status == "open"]
@@ -194,8 +186,7 @@ def test_caffeena_reads_status_from_the_section_heading(fixture_fetch):
 def test_mokafe_splits_name_from_address(fixture_fetch):
     rows = scrape_mokafe(fixture_fetch("mokafe"))
 
-    low, high = get_brand("mokafe").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 10
 
     paterson = next(r for r in rows if r.city == "Paterson")
     assert paterson.street == "1022 Main St"
@@ -213,8 +204,7 @@ def test_mokafe_splits_name_from_address(fixture_fetch):
 def test_sanaa_reads_the_current_location_cards(fixture_fetch):
     rows = scrape_sanaa_cafe(fixture_fetch("sanaa_cafe"))
 
-    low, high = get_brand("sanaa_cafe").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 8
 
     flagship = next(r for r in rows if r.city == "San Francisco")
     assert flagship.street == "199 New Montgomery St"

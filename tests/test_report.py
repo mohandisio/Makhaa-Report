@@ -10,11 +10,11 @@ from makhaa_report.models import Brand, Location, RunStats
 
 _BRANDS = (
     Brand(slug="alpha", display_name="Alpha Coffee", locator_url="https://a.test",
-          method="scrape", band=(1, 10)),
+          method="scrape"),
     Brand(slug="beta", display_name="Beta Coffee", locator_url="https://b.test",
-          method="scrape", band=(1, 10), franchises=True),
+          method="scrape", franchises=True),
     Brand(slug="gamma", display_name="Gamma Coffee", locator_url="https://c.test",
-          method="manual", band=(1, 10)),
+          method="manual"),
 )
 
 

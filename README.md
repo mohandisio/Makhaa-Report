@@ -16,17 +16,20 @@ uv run makhaa-report scrape     # all brands -> snapshots + locations, idempoten
 uv run makhaa-report geocode    # fill missing coordinates (Census batch geocoder)
 uv run makhaa-report export     # database -> data/exports/*.csv
 uv run makhaa-report report     # -> one self-contained HTML file
-uv run makhaa-report diff A B   # compare two runs
+uv run makhaa-report diff A B   # compare two runs (not built yet)
 ```
 
-Exit codes: 0 ok, 1 any brand failed or drifted, 2 usage error.
+Exit codes: 0 ok, 1 any brand failed, 2 usage error.
 
 ## Weekly ritual (manual for now)
 
-1. `uv run makhaa-report scrape` — a brand whose row count falls outside
-   its expected band is quarantined (old rows untouched, loud log, exit 1).
-2. `uv run makhaa-report diff <prev> <latest>` — triage added/removed
-   stores.
+1. `uv run makhaa-report scrape` — whatever a scraper returns is what
+   that brand has. A scraper that raises is skipped for the run, leaving
+   its rows as they were; nothing checks the count against an expected
+   number, because a count in range says nothing about whether the rows
+   are the right rows. Correctness is the scrapers' job and the fixture
+   tests', not a guardrail's.
+2. `uv run makhaa-report diff <prev> <latest>` — not built yet.
 3. Removals and closures are recorded by hand in `data/overrides.csv`
    (`patch`/`add`/`drop`; manual edits always win). A scraper can observe
    absence, not closure.

@@ -4,15 +4,13 @@ When a brand redesigns its locator: re-save the fixture, fix the scraper,
 and update the expectations here.
 """
 
-from makhaa_report.registry import get_brand
 from makhaa_report.scrapers.multi_page import scrape_haraz
 
 
 def test_haraz_parses_every_state_page(fixture_fetch):
     rows = scrape_haraz(fixture_fetch("haraz"))
 
-    low, high = get_brand("haraz").band
-    assert low <= len(rows) <= high
+    assert len(rows) == 61
     assert len({r.state for r in rows}) == 16
 
     # Discovered from the sitemap, so a new state page is picked up

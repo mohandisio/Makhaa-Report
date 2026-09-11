@@ -24,8 +24,8 @@ def conn(workspace):
 def _store(conn, brand="haraz", street="1 Main St", city="Dearborn", state="MI",
            postal="48126", lat=None, lon=None, source=None):
     conn.execute(
-        "INSERT OR IGNORE INTO brands (slug, display_name, locator_url, method,"
-        " band_low, band_high) VALUES (?,?,?,'scrape',0,99)",
+        "INSERT OR IGNORE INTO brands (slug, display_name, locator_url, method)"
+        " VALUES (?,?,?,'scrape')",
         (brand, brand.title(), "https://example.test"),
     )
     now = utcnow_iso()

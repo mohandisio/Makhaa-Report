@@ -23,8 +23,8 @@ def _store(conn, brand="haraz", street="1737 N Alafaya Trail", city="Orlando",
            state="FL", postal="32826"):
     """Put one location in the database, the way a scrape would."""
     conn.execute(
-        "INSERT OR IGNORE INTO brands (slug, display_name, locator_url, method,"
-        " band_low, band_high) VALUES (?,?,?,'scrape',0,99)",
+        "INSERT OR IGNORE INTO brands (slug, display_name, locator_url, method)"
+        " VALUES (?,?,?,'scrape')",
         (brand, brand.title(), "https://example.test"),
     )
     now = utcnow_iso()

@@ -1,6 +1,6 @@
 """Command-line interface.
 
-Exit codes: 0 ok; 1 any brand failed or drifted; 2 usage error (argparse).
+Exit codes: 0 ok; 1 any brand failed; 2 usage error (argparse).
 """
 
 import argparse
@@ -21,8 +21,6 @@ def main(argv: list[str] | None = None) -> int:
     p_scrape = sub.add_parser("scrape", help="scrape all brands into SQLite (idempotent)")
     p_scrape.add_argument("--brand", action="append", dest="brands", metavar="SLUG",
                           help="limit to one brand (repeatable)")
-    p_scrape.add_argument("--allow-drift", action="store_true",
-                          help="write rows even when a brand's count is outside its band")
 
     p_manual = sub.add_parser(
         "manual-entry",
@@ -72,7 +70,6 @@ def main(argv: list[str] | None = None) -> int:
             stats = run_scrape(
                 db.connect(),
                 brands=args.brands,
-                allow_drift=args.allow_drift,
                 progress=progress,
             )
         # The live table's last frame is the summary; only the tally is left.

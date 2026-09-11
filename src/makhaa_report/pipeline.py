@@ -1,4 +1,4 @@
-"""Scrape orchestration: scrapers → drift check → manual → overrides → write."""
+"""Scrape orchestration: scrapers → manual → overrides → write."""
 
 import logging
 import sqlite3
@@ -28,7 +28,6 @@ def run_scrape(
     *,
     brands: list[str] | None = None,
     fetch: Fetch | None = None,
-    allow_drift: bool = False,
     progress: NullProgress | None = None,
 ) -> RunStats:
     if fetch is None:
@@ -63,9 +62,8 @@ def run_scrape(
     stats = RunStats(run_id=db.start_run(conn, now))
     progress.start(stats.run_id, [b.slug for b in ordered])
 
-    # 2+3. Scrape each brand; quarantine on error or band drift. A
-    # quarantined brand's existing rows are left untouched — stale
-    # last_seen is the signal.
+    # 2. Scrape each brand. A scraper that raises is skipped for the run;
+    # its existing rows are left untouched, so stale last_seen is the signal.
     scraped: list[tuple[RawLocation, bool]] = []  # (row, is_manual)
     for brand in ordered:
         if brand.method != "scrape":
@@ -79,22 +77,9 @@ def run_scrape(
         try:
             rows = SCRAPERS[brand.slug](watched(brand.slug))
         except Exception as exc:
-            log.exception("%s: scrape failed — brand quarantined this run", brand.slug)
+            log.exception("%s: scrape failed — skipped this run, rows left as they were",
+                          brand.slug)
             result = BrandResult(brand.slug, "error", note=str(exc))
-            stats.results.append(result)
-            progress.finish_brand(result)
-            continue
-        low, high = brand.band
-        if not low <= len(rows) <= high and not allow_drift:
-            log.error(
-                "%s: DRIFT — scraped %d rows, expected %d-%d. Brand quarantined; "
-                "no rows written. Re-run with --allow-drift to override.",
-                brand.slug, len(rows), low, high,
-            )
-            result = BrandResult(
-                brand.slug, "drift", len(rows),
-                f"expected {low}-{high}; quarantined, nothing written",
-            )
             stats.results.append(result)
             progress.finish_brand(result)
             continue
@@ -103,8 +88,7 @@ def run_scrape(
         stats.results.append(result)
         progress.finish_brand(result)
 
-    # 4. Manual entries — no drift check; these are the source of truth
-    # for the rows they cover.
+    # 3. Manual entries — the source of truth for the rows they cover.
     manual_rows = [r for r in manual.load_manual_brands() if selected(r.brand)]
     for brand in ordered:
         if brand.method == "manual":

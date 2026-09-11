@@ -22,8 +22,9 @@ honest and a parser change that quietly drops rows fails the tests — which
 is how the numbered-route address bug was caught.
 
 What this deliberately gives up: a redesign that only touches the
-surrounding page structure won't fail a test. The per-brand row-count band
-on the live scrape catches that instead.
+surrounding page structure won't fail a test, because the fixture is
+frozen at the shape the page had when it was saved. Nothing on the live
+scrape catches that either — it is the open gap these tests do not close.
 
 ## Refreshing a fixture after a redesign
 
@@ -31,5 +32,5 @@ on the live scrape catches that instead.
 2. Trim it the same way — locator markup only — and overwrite the file.
 3. Fix the scraper and update the expectations in
    `tests/test_scrapers/`.
-4. Re-run the live scrape and reset the brand's band in `registry.py` if
-   the real count moved.
+4. Re-run the live scrape and check the new count is the one the
+   refreshed fixture asserts.

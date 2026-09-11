@@ -17,7 +17,6 @@ console = Console()
 
 _OUTCOME_STYLE = {
     "ok": ("done", "green"),
-    "drift": ("DRIFT", "bold red"),
     "error": ("failed", "bold red"),
     "no_scraper": ("no scraper", "dim"),
 }
