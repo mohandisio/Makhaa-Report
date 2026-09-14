@@ -70,62 +70,6 @@ def scrape_moka_and_co(fetch: Fetch) -> list[RawLocation]:
     return rows
 
 
-ARWA_URL = "https://arwacoffee.com/locations/"
-
-# Google Maps *embed* URLs order their coordinates the other way round to
-# place links: !2d is the longitude, !3d the latitude.
-_EMBED_COORDS = re.compile(r"!2d(-?\d+\.\d+)!3d(-?\d+\.\d+)")
-
-
-def scrape_arwa(fetch: Fetch) -> list[RawLocation]:
-    """Arwa Yemeni Coffee.
-
-    One section per store: an h2 name, a contact block whose paragraphs
-    are address, email and phone in that order, and an embedded Google
-    map the coordinates come from.
-
-    The page lists no announced stores, so every row is recorded as open.
-    """
-    soup = BeautifulSoup(fetch(ARWA_URL), "lxml")
-    rows: list[RawLocation] = []
-
-    for section in soup.select("section.location-section"):
-        paragraphs = [
-            " ".join(p.get_text(" ", strip=True).split())
-            for p in section.select(".info-address p")
-        ]
-        if not paragraphs:
-            continue
-        address = split_us_address(paragraphs[0])
-        if address is None:
-            log.warning("arwa: unparsed address %r", paragraphs[0])
-            continue
-        street, city, state, postal = address
-
-        phone = next((p for p in paragraphs[1:] if any(c.isdigit() for c in p)), None)
-        heading = section.find("h2")
-        frame = section.select_one(".location-map iframe")
-        coords = _EMBED_COORDS.search(frame["src"]) if frame and frame.get("src") else None
-
-        rows.append(
-            RawLocation(
-                brand="arwa",
-                street=street,
-                city=city,
-                state=state,
-                postal=postal,
-                status="open",
-                lat=float(coords.group(2)) if coords else None,
-                lon=float(coords.group(1)) if coords else None,
-                phone=phone,
-                source_url=ARWA_URL,
-                fragment=" ".join(section.get_text(" ", strip=True).split()),
-            )
-        )
-
-    return rows
-
-
 MATARI_URL = "https://mataricoffee.com/locations"
 
 

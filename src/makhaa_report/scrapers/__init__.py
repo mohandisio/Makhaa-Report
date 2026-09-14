@@ -10,6 +10,7 @@ from typing import Callable
 
 from ..fetch import Fetch
 from ..models import RawLocation
+from .brands.arwa import Arwa
 from .brands.haraz import Haraz
 from .brands.biladi import Biladi
 from .brands.house_of_mokhah import HouseOfMokhah
@@ -23,7 +24,6 @@ from .brands.qishr import Qishr
 from .brands.shibam import Shibam
 from .brands.socotra import Socotra
 from .single_page import (
-    scrape_arwa,
     scrape_caffeena,
     scrape_delah,
     scrape_heyma,
@@ -43,7 +43,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "mochabox": Mochabox.scrape,
     "house_of_mokhah": HouseOfMokhah.scrape,
     "biladi": Biladi.scrape,
-    "arwa": scrape_arwa,
+    "arwa": Arwa.scrape,
     "caffeena": scrape_caffeena,
     "delah": scrape_delah,
     "haraz": Haraz.scrape,
