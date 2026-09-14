@@ -3,9 +3,6 @@
 from ..base import Scraper
 from ..extract import drop_tags, innermost_address_texts
 
-URL = "https://www.houseofmokhaycc.com/cafes"
-
-
 class HouseOfMokhah(Scraper):
     """House of Mokhah.
 
@@ -14,7 +11,7 @@ class HouseOfMokhah(Scraper):
     """
 
     slug = "house_of_mokhah"
-    url = URL
+    url = "https://www.houseofmokhaycc.com/cafes"
     quiet = True
 
     def collect(self) -> None:

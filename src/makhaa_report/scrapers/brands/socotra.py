@@ -3,9 +3,6 @@
 from ..base import Scraper
 from ..extract import LOOKS_LIKE_ADDRESS, drop_tags, one_line
 
-URL = "https://socotracoffeehouse.framer.website"
-
-
 class Socotra(Scraper):
     """Socotra Coffee House.
 
@@ -14,7 +11,7 @@ class Socotra(Scraper):
     """
 
     slug = "socotra"
-    url = URL
+    url = "https://socotracoffeehouse.framer.website"
     quiet = True
 
     def collect(self) -> None:

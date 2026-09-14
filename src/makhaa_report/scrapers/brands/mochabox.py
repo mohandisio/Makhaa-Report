@@ -8,8 +8,6 @@ from ..extract import drop_tags
 
 log = logging.getLogger("makhaa")
 
-URL = "https://mochaboxcoffee.com"
-
 # A line that opens like a street: "1050 Haywood Rd."
 _STREET_START = re.compile(r"^\d{1,6}\s+\S+", re.I)
 
@@ -28,7 +26,7 @@ class Mochabox(Scraper):
     """
 
     slug = "mochabox"
-    url = URL
+    url = "https://mochaboxcoffee.com"
     quiet = True
 
     def collect(self) -> None:

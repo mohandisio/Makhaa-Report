@@ -3,14 +3,11 @@
 from ..base import Scraper
 from ..extract import drop_tags, innermost_address_texts
 
-URL = "https://queencoffeehouse.com"
-
-
 class Queen(Scraper):
     """Queen Yemeni Coffee. Addresses use a middot between street and city."""
 
     slug = "queen"
-    url = URL
+    url = "https://queencoffeehouse.com"
     quiet = True
 
     def collect(self) -> None:

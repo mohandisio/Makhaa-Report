@@ -1,9 +1,9 @@
 """Scraper registry: brand slug -> scrape function.
 
-Most brands live under `brands/`, one module each; a few still share a
-module grouped by site type (single_page). Brands absent from this dict
-are reported as "no scraper" and skipped; the pipeline still runs on the
-manual-entry CSVs.
+One module per brand lives under `brands/`, named by its registry slug,
+each holding one `Scraper` subclass. SCRAPERS is built from those
+classes. Brands absent from this dict are reported as "no scraper" and
+skipped; the pipeline still runs on the manual-entry CSVs.
 """
 
 from typing import Callable
@@ -11,11 +11,11 @@ from typing import Callable
 from ..fetch import Fetch
 from ..models import RawLocation
 from .brands.arwa import Arwa
+from .brands.biladi import Biladi
 from .brands.caffeena import Caffeena
 from .brands.delah import Delah
 from .brands.haraz import Haraz
 from .brands.heyma import Heyma
-from .brands.biladi import Biladi
 from .brands.house_of_mokhah import HouseOfMokhah
 from .brands.matari import Matari
 from .brands.mochabox import Mochabox
@@ -26,34 +26,34 @@ from .brands.port import Port
 from .brands.qahwah_house import QahwahHouse
 from .brands.qamaria import Qamaria
 from .brands.qatra import Qatra
-from .brands.queen import Queen
 from .brands.qishr import Qishr
+from .brands.queen import Queen
 from .brands.sanaa_cafe import SanaaCafe
 from .brands.shibam import Shibam
 from .brands.socotra import Socotra
 
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
 
-SCRAPERS: dict[str, ScrapeFn] = {
-    "socotra": Socotra.scrape,
-    "queen": Queen.scrape,
-    "original_mocha": OriginalMocha.scrape,
-    "mochabox": Mochabox.scrape,
-    "house_of_mokhah": HouseOfMokhah.scrape,
-    "biladi": Biladi.scrape,
-    "arwa": Arwa.scrape,
-    "caffeena": Caffeena.scrape,
-    "delah": Delah.scrape,
-    "haraz": Haraz.scrape,
-    "heyma": Heyma.scrape,
-    "matari": Matari.scrape,
-    "moka_and_co": MokaAndCo.scrape,
-    "mokafe": Mokafe.scrape,
-    "qahwah_house": QahwahHouse.scrape,
-    "qamaria": Qamaria.scrape,
-    "port": Port.scrape,
-    "qatra": Qatra.scrape,
-    "qishr": Qishr.scrape,
-    "sanaa_cafe": SanaaCafe.scrape,
-    "shibam": Shibam.scrape,
-}
+SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
+    Arwa,
+    Biladi,
+    Caffeena,
+    Delah,
+    Haraz,
+    Heyma,
+    HouseOfMokhah,
+    Matari,
+    Mochabox,
+    MokaAndCo,
+    Mokafe,
+    OriginalMocha,
+    Port,
+    QahwahHouse,
+    Qamaria,
+    Qatra,
+    Qishr,
+    Queen,
+    SanaaCafe,
+    Shibam,
+    Socotra,
+)}
