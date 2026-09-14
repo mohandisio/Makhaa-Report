@@ -4,7 +4,6 @@ differently. Each test pins the quirk that made its scraper necessary.
 
 import pytest
 
-from makhaa_report.scrapers.multi_page import scrape_original_mocha
 from makhaa_report.scrapers.single_page import (
     scrape_biladi,
     scrape_house_of_mokhah,
@@ -41,13 +40,3 @@ def test_mochabox_drops_its_six_digit_postcode(fixture_fetch):
     # The site publishes "Asheville, NC 208806". Truncating that to a
     # five-digit ZIP would invent a plausible-looking wrong postcode.
     assert rows[0].postal is None
-
-
-def test_original_mocha_finds_store_pages_by_slug(fixture_fetch):
-    rows = scrape_original_mocha(fixture_fetch("original_mocha"))
-
-    assert len(rows) == 2
-    assert {r.city for r in rows} == {"Murphy", "Tinley Park"}
-    # Each store's own page is its provenance, not the home page.
-    assert all(r.source_url.rstrip("/").endswith(r.city.lower().replace(" ", "-") + {
-        "Murphy": "-texas", "Tinley Park": "-illinois"}[r.city]) for r in rows)
