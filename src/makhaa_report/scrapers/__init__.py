@@ -9,8 +9,9 @@ from typing import Callable
 
 from ..fetch import Fetch
 from ..models import RawLocation
+from .brands.qahwah_house import QahwahHouse
 from .brands.qamaria import Qamaria
-from .json_sites import scrape_qahwah_house, scrape_shibam
+from .json_sites import scrape_shibam
 from .multi_page import scrape_haraz, scrape_original_mocha
 from .spa_bundle import scrape_port, scrape_qishr
 from .single_page import (
@@ -47,7 +48,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "matari": scrape_matari,
     "moka_and_co": scrape_moka_and_co,
     "mokafe": scrape_mokafe,
-    "qahwah_house": scrape_qahwah_house,
+    "qahwah_house": QahwahHouse.scrape,
     "qamaria": Qamaria.scrape,
     "port": scrape_port,
     "qatra": scrape_qatra,
