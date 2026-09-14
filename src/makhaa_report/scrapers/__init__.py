@@ -26,6 +26,7 @@ from .brands.mocha_point import MochaPoint
 from .brands.mochabox import Mochabox
 from .brands.moka_and_co import MokaAndCo
 from .brands.mokafe import Mokafe
+from .brands.mokhaport import Mokhaport
 from .brands.moqana import Moqana
 from .brands.original_mocha import OriginalMocha
 from .brands.port import Port
@@ -62,6 +63,7 @@ SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
     Mochabox,
     MokaAndCo,
     Mokafe,
+    Mokhaport,
     Moqana,
     OriginalMocha,
     Port,

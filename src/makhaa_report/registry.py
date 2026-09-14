@@ -443,6 +443,20 @@ BRANDS: tuple[Brand, ...] = (
             "coming-soon marker, so the row is always recorded open."
         ),
     ),
+    Brand(
+        slug="mokhaport",
+        display_name="Mokhaport",
+        locator_url="https://mokhaport.com",
+        method="scrape",
+        notes=(
+            "Unrelated to Port Coffee Co. (portcoffeeco.com) despite the "
+            "similar name. Single store: one schema.org "
+            "CafeOrCoffeeShop block carries the address split across "
+            "`streetAddress`, `addressLocality`, `addressRegion` and "
+            "`postalCode`; two Product blocks for bagged coffee use "
+            "ld+json too but carry no address and are skipped."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
