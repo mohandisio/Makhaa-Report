@@ -13,6 +13,7 @@ from ..models import RawLocation
 from .brands.arwa import Arwa
 from .brands.delah import Delah
 from .brands.haraz import Haraz
+from .brands.heyma import Heyma
 from .brands.biladi import Biladi
 from .brands.house_of_mokhah import HouseOfMokhah
 from .brands.matari import Matari
@@ -29,7 +30,6 @@ from .brands.shibam import Shibam
 from .brands.socotra import Socotra
 from .single_page import (
     scrape_caffeena,
-    scrape_heyma,
     scrape_mokafe,
     scrape_qatra,
 )
@@ -47,7 +47,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "caffeena": scrape_caffeena,
     "delah": Delah.scrape,
     "haraz": Haraz.scrape,
-    "heyma": scrape_heyma,
+    "heyma": Heyma.scrape,
     "matari": Matari.scrape,
     "moka_and_co": MokaAndCo.scrape,
     "mokafe": scrape_mokafe,
