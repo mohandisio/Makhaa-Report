@@ -11,7 +11,7 @@ from ..fetch import Fetch
 from ..models import RawLocation
 from .brands.qahwah_house import QahwahHouse
 from .brands.qamaria import Qamaria
-from .json_sites import scrape_shibam
+from .brands.shibam import Shibam
 from .multi_page import scrape_haraz, scrape_original_mocha
 from .spa_bundle import scrape_port, scrape_qishr
 from .single_page import (
@@ -54,5 +54,5 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "qatra": scrape_qatra,
     "qishr": scrape_qishr,
     "sanaa_cafe": scrape_sanaa_cafe,
-    "shibam": scrape_shibam,
+    "shibam": Shibam.scrape,
 }

@@ -1,16 +1,14 @@
-"""Offline parse checks against saved locator payloads.
+"""Offline parse checks against saved Shibam locator payloads.
 
-When a brand redesigns its locator: re-save the fixture, fix the scraper,
-and update the expectations here.
+When the brand redesigns its locator: re-save the fixture, fix the
+scraper, and update the expectations here.
 """
 
-from makhaa_report.scrapers.json_sites import (
-    scrape_shibam,
-)
+from makhaa_report.scrapers.brands.shibam import Shibam
 
 
 def test_shibam_parses_cards_from_rendered_html(fixture_fetch):
-    rows = scrape_shibam(fixture_fetch("shibam"))
+    rows = Shibam.scrape(fixture_fetch("shibam"))
 
     assert len(rows) == 20
 
@@ -23,7 +21,7 @@ def test_shibam_parses_cards_from_rendered_html(fixture_fetch):
 
 
 def test_shibam_reads_status_from_prose(fixture_fetch):
-    rows = scrape_shibam(fixture_fetch("shibam"))
+    rows = Shibam.scrape(fixture_fetch("shibam"))
 
     # Announced with wording, not a marker: "Soft opening coming soon!!"
     ann_arbor = next(r for r in rows if r.city == "Ann Arbor")
@@ -32,7 +30,7 @@ def test_shibam_reads_status_from_prose(fixture_fetch):
 
 
 def test_shibam_trusts_the_address_over_the_heading(fixture_fetch):
-    rows = scrape_shibam(fixture_fetch("shibam"))
+    rows = Shibam.scrape(fixture_fetch("shibam"))
 
     # Headings are regional labels: this card is headed "CLEVELAND, OH"
     # but the address is the truth.
