@@ -1,6 +1,5 @@
 """Brands whose entire locator is one server-rendered HTML page."""
 
-import json
 import logging
 import re
 
@@ -14,73 +13,6 @@ log = logging.getLogger("makhaa")
 
 # Cheap pre-filter for text nodes worth handing to the address parser.
 _LOOKS_LIKE_ADDRESS = re.compile(r"\b[A-Z]{2}\s+\d{5}\b")
-
-# The Yemeni brand is qatracoffee.com. qatracafe.com is an unrelated
-# Afghan chai cafe — see the exclusions in the registry.
-QATRA_URL = "https://qatracoffee.com/"
-
-
-def scrape_qatra(fetch: Fetch) -> list[RawLocation]:
-    """Qatra Coffee.
-
-    There is no locations page — /locations returns 404 — so the stores
-    are read off the home page, where each address appears several times
-    across header, cards and footer. Addresses are collected wherever
-    they appear and deduplicated.
-
-    One store publishes coordinates in a schema.org block; the others
-    have none. No announced stores are published.
-    """
-    soup = BeautifulSoup(fetch(QATRA_URL), "lxml")
-
-    coords: dict[str, tuple[float, float]] = {}
-    for block in soup.find_all("script", type="application/ld+json"):
-        try:
-            record = json.loads(block.string or "{}")
-        except json.JSONDecodeError:
-            continue
-        address = record.get("address") or {}
-        geo = record.get("geo") or {}
-        if record.get("@type") == "CafeOrCoffeeShop" and geo.get("latitude"):
-            coords[address.get("streetAddress", "").casefold()] = (
-                geo["latitude"],
-                geo["longitude"],
-            )
-
-    for tag in soup.find_all(["script", "style"]):
-        tag.decompose()
-
-    rows: list[RawLocation] = []
-    seen: set[tuple[str, str]] = set()
-
-    for node in soup.find_all(string=_LOOKS_LIKE_ADDRESS):
-        text = " ".join(str(node).split())
-        address = split_us_address(text)
-        if address is None:
-            continue
-        street, city, state, postal = address
-        if (street, city) in seen:
-            continue
-        seen.add((street, city))
-        point = coords.get(street.casefold())
-
-        rows.append(
-            RawLocation(
-                brand="qatra",
-                street=street,
-                city=city,
-                state=state,
-                postal=postal,
-                status="open",
-                lat=point[0] if point else None,
-                lon=point[1] if point else None,
-                source_url=QATRA_URL,
-                fragment=text,
-            )
-        )
-
-    return rows
-
 
 CAFFEENA_URL = "https://caffeena.com/locations"
 
