@@ -9,12 +9,13 @@ from typing import Callable
 
 from ..fetch import Fetch
 from ..models import RawLocation
+from .brands.haraz import Haraz
 from .brands.port import Port
 from .brands.qahwah_house import QahwahHouse
 from .brands.qamaria import Qamaria
 from .brands.qishr import Qishr
 from .brands.shibam import Shibam
-from .multi_page import scrape_haraz, scrape_original_mocha
+from .multi_page import scrape_original_mocha
 from .single_page import (
     scrape_arwa,
     scrape_biladi,
@@ -44,7 +45,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "arwa": scrape_arwa,
     "caffeena": scrape_caffeena,
     "delah": scrape_delah,
-    "haraz": scrape_haraz,
+    "haraz": Haraz.scrape,
     "heyma": scrape_heyma,
     "matari": scrape_matari,
     "moka_and_co": scrape_moka_and_co,
