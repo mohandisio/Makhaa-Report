@@ -23,6 +23,7 @@ from .brands.qahwah_house import QahwahHouse
 from .brands.qamaria import Qamaria
 from .brands.queen import Queen
 from .brands.qishr import Qishr
+from .brands.sanaa_cafe import SanaaCafe
 from .brands.shibam import Shibam
 from .brands.socotra import Socotra
 from .single_page import (
@@ -31,7 +32,6 @@ from .single_page import (
     scrape_heyma,
     scrape_mokafe,
     scrape_qatra,
-    scrape_sanaa_cafe,
 )
 
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
@@ -56,6 +56,6 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "port": Port.scrape,
     "qatra": scrape_qatra,
     "qishr": Qishr.scrape,
-    "sanaa_cafe": scrape_sanaa_cafe,
+    "sanaa_cafe": SanaaCafe.scrape,
     "shibam": Shibam.scrape,
 }
