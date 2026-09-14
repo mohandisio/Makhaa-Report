@@ -16,6 +16,7 @@ from .brands.bayt_almocha import BaytAlmocha
 from .brands.biladi import Biladi
 from .brands.caffeena import Caffeena
 from .brands.delah import Delah
+from .brands.emari_roast import EmariRoast
 from .brands.haraz import Haraz
 from .brands.heyma import Heyma
 from .brands.house_of_mokhah import HouseOfMokhah
@@ -49,6 +50,7 @@ SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
     Biladi,
     Caffeena,
     Delah,
+    EmariRoast,
     Haraz,
     Heyma,
     HouseOfMokhah,

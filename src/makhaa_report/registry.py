@@ -403,6 +403,19 @@ BRANDS: tuple[Brand, ...] = (
             "used as the location list."
         ),
     ),
+    Brand(
+        slug="emari_roast",
+        display_name="Emari Roast Cafe",
+        locator_url="https://emariroastcafe.com/locations",
+        method="scrape",
+        notes=(
+            "Server-rendered Next.js /locations page: one \"Now Open\" "
+            "card with a full street address, followed by \"Coming "
+            "Soon\" teasers naming only a city and state. A teaser never "
+            "carries a state-plus-ZIP pair, so it never looks like an "
+            "address and needs no separate filter."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
