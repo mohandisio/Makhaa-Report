@@ -288,6 +288,23 @@ BRANDS: tuple[Brand, ...] = (
             "the real address."
         ),
     ),
+    Brand(
+        slug="jabal",
+        display_name="Jabal Coffee House",
+        locator_url="https://jabalcoffeehouse.com/pages/locations",
+        method="scrape",
+        notes=(
+            "Shopify map cards, each with a name and an address paragraph "
+            "whose lines are joined by <br> rather than split into "
+            "elements. City-only \"City, ST\" teasers with no street "
+            "number are announcements, not broken addresses, and are "
+            "skipped before parsing; a Canadian store (plus two more "
+            "city-only Canadian teasers) falls out of the US address "
+            "parse instead. \"Soft Opening\" wording means the store is "
+            "already trading — only \"coming\" wording marks a row "
+            "coming_soon."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
