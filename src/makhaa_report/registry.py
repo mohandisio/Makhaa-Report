@@ -416,6 +416,20 @@ BRANDS: tuple[Brand, ...] = (
             "address and needs no separate filter."
         ),
     ),
+    Brand(
+        slug="yemerica",
+        display_name="Yemerica Coffee",
+        locator_url="https://yemericacoffee.com/locations",
+        method="scrape",
+        notes=(
+            "/locations lists one open flagship plus several coming-soon "
+            "cards for future markets, each announced only by a bare "
+            "state name with no street, so a text scan naturally skips "
+            "them. The flagship's full street, city, state and ZIP "
+            "appear together only in the footer contact block, not the "
+            "location card itself."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
