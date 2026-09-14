@@ -54,6 +54,11 @@
   .about[open] summary::before { transform: rotate(90deg); }
   .about[open] summary { margin-bottom: .75rem; }
   footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; }
+  .faq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+              gap: 1rem; margin-top: 1rem; }
+  .faq-grid .chart-box h3 { margin: 0 0 .5rem; font-size: 1rem; }
+  .faq-grid .chart-box p.answer { margin: 0 0 .5rem; font-size: 1.1rem; }
+  .faq-grid .chart-box p.note { margin: 0; }
 </style>
 </head>
 <body>
@@ -158,6 +163,19 @@
   will also list newly opened shops run by run. For now, the announced
   openings show where the wave is heading next.</p>
   <div class="chart-box" style="height: 340px"><canvas id="coming-soon-chart"></canvas></div>
+</section>
+
+<section>
+  <h2>Questions the data answers</h2>
+  <div class="faq-grid">
+    {% for entry in faq %}
+    <div class="chart-box">
+      <h3>{{ entry.question }}</h3>
+      <p class="answer">{{ entry.answer }}</p>
+      <p class="note">{{ entry.note }}</p>
+    </div>
+    {% endfor %}
+  </div>
 </section>
 
 <footer>Data comes from each brand's public store locator; positions from the

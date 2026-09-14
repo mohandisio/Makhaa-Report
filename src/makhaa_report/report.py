@@ -5,6 +5,7 @@ dicts and lists out. The HTML itself lives in templates/report.html.j2.
 """
 
 import sqlite3
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from jinja2 import Environment, PackageLoader
@@ -219,6 +220,122 @@ def data_as_of(conn: sqlite3.Connection) -> str | None:
     return row[0]
 
 
+def faq(conn: sqlite3.Connection, today: str | None = None) -> list[dict]:
+    """Plain-language Q&A computed straight from the database, never
+    hand-written numbers. `today` (YYYY-MM-DD) defaults to the current UTC
+    date and exists so tests are deterministic."""
+    today_date = date.fromisoformat(today) if today else datetime.now(timezone.utc).date()
+    entries = []
+
+    brands = brand_table(conn)
+    leader = brands[0]
+    entries.append({
+        "question": "Which brand has the most shops, and how many states is it in?",
+        "answer": f"{leader['display_name']}: {leader['total']} shops "
+                  f"across {leader['states']} states.",
+        "note": "Counted from the brand's own locator on the last run.",
+    })
+
+    cutoff_month = f"{today_date.year - 1:04d}-{today_date.month:02d}"
+    recent = conn.execute(
+        """SELECT l.brand AS slug, b.display_name, COUNT(*) AS n
+           FROM locations l JOIN brands b ON b.slug = l.brand
+           WHERE l.opened_date IS NOT NULL AND l.opened_date >= ?
+           GROUP BY l.brand ORDER BY n DESC, b.display_name ASC""",
+        (cutoff_month,),
+    ).fetchall()
+    if recent:
+        recent_leader = recent[0]
+        answer2 = (f"{sum(r['n'] for r in recent)} shops; "
+                   f"{recent_leader['display_name']} opened the most ({recent_leader['n']}).")
+    else:
+        answer2 = "No shops have a dated opening in the last 12 months."
+    dated = conn.execute(
+        "SELECT COUNT(*) FROM locations WHERE opened_date IS NOT NULL"
+    ).fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM locations").fetchone()[0]
+    entries.append({
+        "question": "How many shops opened in the last 12 months, "
+                    "and which brand opened the most?",
+        "answer": answer2,
+        "note": f"{dated} of {total} shops have a dated opening; "
+                "dates come from permit and licence records.",
+    })
+
+    coming = coming_soon_by_state(conn)
+    by_state: dict[str, int] = {}
+    for r in coming:
+        by_state[r["state"]] = by_state.get(r["state"], 0) + r["total"]
+    top_states = sorted(by_state.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
+    if top_states:
+        where = ", ".join(f"{state} ({n})" for state, n in top_states)
+        answer3 = f"{sum(by_state.values())} announced; most in {where}."
+    else:
+        answer3 = "No announced shops yet."
+    entries.append({
+        "question": "How many announced shops are not open yet, and where?",
+        "answer": answer3,
+        "note": "Only brands whose locator marks announced stores are counted.",
+    })
+
+    diverse = city_diversity(conn, limit=1)
+    if diverse:
+        top_city = diverse[0]
+        city, state = top_city["label"].split(", ")
+        names = [
+            r[0] for r in conn.execute(
+                """SELECT DISTINCT b.display_name FROM locations l
+                   JOIN brands b ON b.slug = l.brand
+                   WHERE l.city = ? AND l.state = ? ORDER BY b.display_name""",
+                (city, state),
+            )
+        ]
+        answer4 = f"{top_city['label']}: {top_city['brands']} brands ({', '.join(names)})."
+    else:
+        answer4 = "No cities yet."
+    entries.append({
+        "question": "Which city has the most competing brands?",
+        "answer": answer4,
+        "note": "Brands with at least one shop in that city.",
+    })
+
+    as_of = data_as_of(conn)
+    cutoff_90 = (today_date - timedelta(days=90)).isoformat()
+    runs_90 = conn.execute(
+        "SELECT COUNT(*) FROM runs WHERE finished_at IS NOT NULL "
+        "AND substr(finished_at, 1, 10) >= ?",
+        (cutoff_90,),
+    ).fetchone()[0]
+    entries.append({
+        "question": "How current is this?",
+        "answer": f"Last run {as_of[:10] if as_of else 'never'}; "
+                  f"{runs_90} runs in the last 90 days.",
+        "note": "Runs are weekly; a store not seen on a run keeps its last-seen "
+                "date rather than being deleted.",
+    })
+
+    geo = {
+        r["geocode_source"]: r["n"]
+        for r in conn.execute(
+            "SELECT geocode_source, COUNT(*) AS n FROM locations GROUP BY geocode_source"
+        )
+    }
+    flagged = conn.execute(
+        "SELECT COUNT(*) FROM locations WHERE geocode_flagged"
+    ).fetchone()[0]
+    entries.append({
+        "question": "How verified are the addresses?",
+        "answer": (f"{geo.get('census', 0)} placed by the Census geocoder, "
+                   f"{geo.get('nominatim', 0)} by OpenStreetMap, "
+                   f"{geo.get('locator', 0)} from the brand's own coordinates, "
+                   f"{geo.get('manual', 0)} set by hand; {flagged} flagged for review."),
+        "note": "Every address is checked against the Census geocoder before it "
+                "is stored; OpenStreetMap is asked about the ones Census cannot confirm.",
+    })
+
+    return entries
+
+
 def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> dict:
     """Everything the template needs. `payload` is the subset the page's
     JavaScript reads; the rest renders server-side."""
@@ -226,17 +343,19 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
     brands = brand_table(conn)
     colors = brand_colors(brands)
     statuses = status_counts(conn)
+    generated_at = generated_at or utcnow_iso()
     # The payload ships to the public page; keep it to what the pins and
     # popups display, nothing that reads like a raw dataset row.
     public = ("brand", "brand_name", "street", "city", "state",
               "lat", "lon", "status", "phone", "hours")
     return {
-        "generated_at": generated_at or utcnow_iso(),
+        "generated_at": generated_at,
         "data_as_of": data_as_of(conn),
         "headline": headline_stats(conn),
         "brands": brands,
         "states": state_counts(conn),
         "unmapped": unmapped,
+        "faq": faq(conn, generated_at[:10]),
         "payload": {
             "shops": [{k: s[k] for k in public} for s in mapped],
             "brands": brands,
