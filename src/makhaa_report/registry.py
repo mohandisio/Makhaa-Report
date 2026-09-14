@@ -193,10 +193,10 @@ BRANDS: tuple[Brand, ...] = (
         locator_url="https://qishrcoffeehouse.co",
         method="scrape",
         notes=(
-            "Single-page app with no store list — the one cafe's "
-            "address is inlined in the footer markup, so it arrives as "
-            "two adjacent string literals in the JS bundle. Fragile by "
-            "nature: a rebuild breaks the parse silently."
+            "No store list — the one cafe's address sits in a plain "
+            "server-rendered address block on the home page. The site "
+            "was a Vite single-page app, with the address inlined in "
+            "the JS bundle, before being rebuilt as static HTML."
         ),
     ),
     Brand(
