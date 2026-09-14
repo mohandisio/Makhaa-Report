@@ -8,9 +8,29 @@ from makhaa_report.scrapers.extract import (
     innermost_address_texts,
     one_line,
     place_coords,
+    postal_address,
     schema_records,
     text,
 )
+
+
+def test_postal_address_joins_a_full_schema_org_address():
+    address = {
+        "streetAddress": "123 Main St",
+        "addressLocality": "Springfield",
+        "addressRegion": "MI",
+        "postalCode": "48001",
+    }
+    assert postal_address(address) == "123 Main St, Springfield, MI 48001"
+
+
+def test_postal_address_omits_a_missing_postal_code():
+    address = {
+        "streetAddress": "123 Main St",
+        "addressLocality": "Springfield",
+        "addressRegion": "MI",
+    }
+    assert postal_address(address) == "123 Main St, Springfield, MI"
 
 
 def test_one_line_collapses_whitespace():

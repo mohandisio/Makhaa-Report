@@ -26,15 +26,7 @@ class Albunn(Scraper):
 
         for record in extract.schema_records(soup, "Restaurant"):
             address = record.get("address") or {}
-            raw_address = ", ".join(
-                part
-                for part in (
-                    address.get("streetAddress"),
-                    address.get("addressLocality"),
-                    f"{address.get('addressRegion', '')} {address.get('postalCode', '')}".strip(),
-                )
-                if part
-            )
+            raw_address = extract.postal_address(address)
             geo = record.get("geo") or {}
 
             self.add(

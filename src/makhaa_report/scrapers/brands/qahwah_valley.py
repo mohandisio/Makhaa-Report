@@ -33,11 +33,7 @@ class QahwahValley(Scraper):
                 address = store.get("address") or {}
                 geo = store.get("geo") or {}
 
-                street = address.get("streetAddress") or ""
-                city = address.get("addressLocality") or ""
-                state = address.get("addressRegion") or ""
-                postal = address.get("postalCode") or ""
-                raw_address = f"{street}, {city}, {state} {postal}".strip()
+                raw_address = extract.postal_address(address)
 
                 self.add(
                     raw_address,

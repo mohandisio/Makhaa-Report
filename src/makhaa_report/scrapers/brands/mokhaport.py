@@ -3,20 +3,7 @@
 import json
 
 from ..base import Scraper
-from ..extract import schema_records
-
-
-def _raw_address(address: dict) -> str:
-    tail = " ".join(
-        part
-        for part in (address.get("addressRegion"), address.get("postalCode"))
-        if part
-    )
-    return ", ".join(
-        part
-        for part in (address.get("streetAddress"), address.get("addressLocality"), tail)
-        if part
-    )
+from ..extract import postal_address, schema_records
 
 
 class Mokhaport(Scraper):
@@ -50,7 +37,7 @@ class Mokhaport(Scraper):
             geo = record.get("geo") or {}
 
             self.add(
-                _raw_address(address),
+                postal_address(address),
                 status="open",
                 coords=(geo.get("latitude"), geo.get("longitude")),
                 phone=record.get("telephone") or None,

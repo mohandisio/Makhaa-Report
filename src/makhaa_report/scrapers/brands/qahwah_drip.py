@@ -3,6 +3,7 @@
 import json
 import logging
 
+from .. import extract
 from ..base import Scraper
 
 log = logging.getLogger("makhaa")
@@ -57,16 +58,7 @@ class QahwahDrip(Scraper):
                 continue
 
             address = record.get("address") or {}
-            raw_address = ", ".join(
-                part
-                for part in (
-                    address.get("streetAddress"),
-                    address.get("addressLocality"),
-                    address.get("addressRegion"),
-                    address.get("postalCode"),
-                )
-                if part
-            )
+            raw_address = extract.postal_address(address)
             geo = record.get("geo") or {}
             hours = (
                 _opening_hours(record)

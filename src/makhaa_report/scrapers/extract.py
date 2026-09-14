@@ -67,6 +67,24 @@ def innermost_address_texts(soup) -> list[str]:
     return texts
 
 
+def postal_address(address: dict) -> str:
+    """Join a schema.org `PostalAddress` into one line.
+
+    `"<street>, <locality>, <region> <postal>"`, with any missing part
+    dropped cleanly rather than leaving a stray comma or space behind.
+    """
+    tail = " ".join(
+        part
+        for part in (address.get("addressRegion"), address.get("postalCode"))
+        if part
+    )
+    return ", ".join(
+        part
+        for part in (address.get("streetAddress"), address.get("addressLocality"), tail)
+        if part
+    )
+
+
 def schema_records(soup, type_name: str) -> list[dict]:
     """Parsed `<script type="application/ld+json">` blocks matching `@type`.
 
