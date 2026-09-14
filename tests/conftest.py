@@ -2,9 +2,26 @@ from pathlib import Path
 
 import pytest
 
+from makhaa_report import config
 from makhaa_report.fetch import fixture_fetcher
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def isolate_data_dir(tmp_path, monkeypatch):
+    """Keep every test out of the real data/ directory.
+
+    Nothing under test should be able to read or write the repo's actual
+    manual CSVs, overrides.csv, geocode cache, exports, or database — a
+    test that reaches config.OVERRIDES_PATH etc. without this would patch
+    the real file on disk instead of a throwaway one.
+    """
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "data" / "makhaa.sqlite")
+    monkeypatch.setattr(config, "MANUAL_DIR", tmp_path / "data" / "manual")
+    monkeypatch.setattr(config, "OVERRIDES_PATH", tmp_path / "data" / "overrides.csv")
+    monkeypatch.setattr(config, "EXPORT_DIR", tmp_path / "data" / "exports")
+    monkeypatch.setattr(config, "GEO_DIR", tmp_path / "data" / "geo")
 
 
 @pytest.fixture(autouse=True)

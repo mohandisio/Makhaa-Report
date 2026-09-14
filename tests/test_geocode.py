@@ -5,10 +5,11 @@ These tests pin that the store stays one row with its history attached.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 
-from makhaa_report import db, geo, geocode, pipeline
+from makhaa_report import config, db, geo, geocode, manual, pipeline
 from makhaa_report.models import RawLocation, utcnow_iso
 from makhaa_report.normalize import make_uid, to_location
 
@@ -156,6 +157,32 @@ def test_adopting_moves_the_row_and_its_snapshots(conn):
     assert (rows[0]["uid"], rows[0]["street"]) == (new_uid, "606 Broad Hollow Rd")
     # History follows the row rather than being orphaned.
     assert conn.execute("SELECT uid FROM snapshots").fetchone()["uid"] == new_uid
+
+
+def test_adopting_never_touches_the_real_overrides_file(conn):
+    """geocode._record writes through manual.append_override -> config.OVERRIDES_PATH.
+
+    That must land under tmp_path (the isolate_data_dir autouse fixture),
+    never in the repo's real data/overrides.csv.
+    """
+    real_overrides = (config.ROOT / "data" / "overrides.csv").resolve()
+    before = real_overrides.read_bytes() if real_overrides.is_file() else None
+
+    old_uid = _store(conn, street="606 Broadhollow Rd", city="Melville",
+                     state="NY", postal="11747")
+    post = _responder({"606 Broadhollow Rd": "606 BROAD HOLLOW RD, MELVILLE, NY, 11747"})
+
+    stats = _run(conn, post=post)
+
+    assert stats.recorded == [old_uid]
+    assert config.OVERRIDES_PATH.resolve() != real_overrides
+
+    recorded = manual.load_overrides(config.OVERRIDES_PATH)
+    assert any(ov.uid == old_uid and ov.fields["street"] == "606 Broad Hollow Rd"
+               for ov in recorded)
+
+    after = real_overrides.read_bytes() if real_overrides.is_file() else None
+    assert after == before, "the real data/overrides.csv must be untouched"
 
 
 def test_dry_run_writes_nothing(conn):
