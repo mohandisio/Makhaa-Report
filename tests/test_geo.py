@@ -177,6 +177,25 @@ def test_a_row_the_service_drops_becomes_a_miss():
     assert result["ghost"] == geo.MISS
 
 
+# --- nominatim ------------------------------------------------------------
+
+def test_nominatim_search_lets_a_transport_error_propagate():
+    def broken(url, params):
+        raise OSError("connection reset")
+
+    query = geo.Query("k", "21788 Katy Freeway", "Katy", "TX", "77449")
+    with pytest.raises(OSError):
+        geo.nominatim_search(query, get=broken)
+
+
+def test_nominatim_lookup_still_reports_a_transport_error_as_a_miss():
+    def broken(url, params):
+        raise OSError("connection reset")
+
+    query = geo.Query("k", "21788 Katy Freeway", "Katy", "TX", "77449")
+    assert geo.nominatim_lookup(query, get=broken) == geo.MISS
+
+
 # --- cache --------------------------------------------------------------
 
 def test_cache_spares_the_service_a_second_lookup(tmp_path):

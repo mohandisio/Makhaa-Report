@@ -345,9 +345,18 @@ def _ask_nominatim(conn, rows, unresolved: set[str], stats: GeocodeStats, *,
         match = cache.get(query)
         progress.fallback_step(f"{row['street']}, {row['city']}")
         if match is None:
-            match = geo.nominatim_lookup(query, get=get)
-            cache.put(query, match)
-            cache.save()
+            try:
+                match = geo.nominatim_search(query, get=get)
+            except geo.NOMINATIM_ERRORS as exc:
+                log.warning("nominatim: %s (%s) — %s",
+                            row["street"], row["city"], exc)
+                match = geo.MISS
+            else:
+                # A transport failure is not the same fact as "OpenStreetMap
+                # has never heard of this address" — only the latter is
+                # worth remembering, or an outage would be cached forever.
+                cache.put(query, match)
+                cache.save()
             # One request a second, as OpenStreetMap asks. Only after a
             # real lookup — a cache hit costs them nothing.
             sleep(config.RATE_DELAY_S)

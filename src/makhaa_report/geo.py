@@ -205,8 +205,13 @@ def _requests_get(url: str, params: dict[str, str]) -> str:
     return response.text
 
 
-def nominatim_lookup(query: Query, *, get: Get | None = None) -> Match:
-    """Ask OpenStreetMap where one address is.
+#: Raised by a transport failure or an unparsable reply — the caller
+#: decides whether that is worth caching (it is not).
+NOMINATIM_ERRORS = (OSError, ValueError, KeyError, IndexError)
+
+
+def nominatim_search(query: Query, *, get: Get | None = None) -> Match:
+    """Ask OpenStreetMap where one address is. Exceptions propagate.
 
     Coordinates only. OSM's address strings are contributed rather than
     authoritative, so nothing here is adopted into the stored address —
@@ -219,14 +224,19 @@ def nominatim_lookup(query: Query, *, get: Get | None = None) -> Match:
     }
     if query.postal:
         params["postalcode"] = query.postal
+    results = json.loads(get(NOMINATIM_URL, params))
+    if not results:
+        return MISS
+    hit = results[0]
+    return Match(matched=True, exact=False,
+                 lat=float(hit["lat"]), lon=float(hit["lon"]))
+
+
+def nominatim_lookup(query: Query, *, get: Get | None = None) -> Match:
+    """nominatim_search, with a failed request reported as a miss."""
     try:
-        results = json.loads(get(NOMINATIM_URL, params))
-        if not results:
-            return MISS
-        hit = results[0]
-        return Match(matched=True, exact=False,
-                     lat=float(hit["lat"]), lon=float(hit["lon"]))
-    except (OSError, ValueError, KeyError, IndexError) as exc:
+        return nominatim_search(query, get=get)
+    except NOMINATIM_ERRORS as exc:
         # A failed lookup is a missing coordinate, not a failed run. Kept
         # narrow on purpose: a bare `except` here would swallow bugs and
         # report them as addresses OpenStreetMap has never heard of.

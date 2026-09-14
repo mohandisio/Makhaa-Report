@@ -512,6 +512,20 @@ def test_a_failing_nominatim_request_costs_only_that_row(conn):
     assert conn.execute("SELECT lat FROM locations").fetchone()[0] is None
 
 
+def test_a_failed_nominatim_request_is_asked_again_next_run(conn):
+    _store(conn, street="21788 Katy Freeway", city="Katy", state="TX", postal="77449")
+
+    def broken(url, params):
+        raise OSError("connection reset")
+
+    _run(conn, post=_responder({}), get=broken)
+    _run(conn, post=_responder({}),
+         get=_osm({"21788 Katy Freeway": (29.786, -95.734)}))
+
+    row = conn.execute("SELECT lat, lon FROM locations").fetchone()
+    assert (row["lat"], row["lon"]) == pytest.approx((29.786, -95.734))
+
+
 def test_a_case_only_change_is_reported_as_cosmetic(conn):
     _store(conn, street="6290 HOLLYWOOD BLVD", city="LOS ANGELES", state="CA",
            postal="90028")
