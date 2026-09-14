@@ -105,13 +105,16 @@ class AddressConfirmer:
                 new_published = make_uid(
                     row.brand, resolution.street, resolution.city, row.state
                 )
+                # published_uid marks that the confirmer changed the
+                # address; equal to the new uid when only the spelling or
+                # postal moved, or to the old uid when the uid itself moved.
                 new_row = replace(
                     new_row,
                     street=resolution.street,
                     city=resolution.city,
                     postal=resolution.postal,
                     published_uid=(
-                        published[i] if new_published != published[i] else None
+                        published[i] if new_published != published[i] else new_published
                     ),
                 )
 

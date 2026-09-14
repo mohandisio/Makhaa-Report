@@ -433,18 +433,55 @@ def test_confirmer_correction_merges_when_both_uids_already_exist(
     assert snaps == 3
 
 
-def test_confirmer_published_uid_equal_to_current_uid_is_a_noop(
+def test_confirmer_spelling_fix_rewrites_a_row_already_in_the_table(
     conn, manual_csv, monkeypatch
 ):
-    """A defensive case: the confirmer names published_uid but it already
-    matches the row's own uid, so there is nothing to move.
+    """The uid is punctuation-blind, so a spelling fix never moves it — but
+    the corrected spelling still has to land on the row already stored
+    under that uid, not just on rows written for the first time.
     """
-    monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: [SCRAPED])
-    own_uid = pipeline.make_uid("haraz", SCRAPED.street, SCRAPED.city, "CA")
-    confirmer = _FakeConfirmer({SCRAPED.street: {"published_uid": own_uid}})
+    raw = RawLocation(brand="haraz", street="343 N Main St.", city="Anytown",
+                       state="TX", postal="75001", status="open")
+    monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: [raw])
+    pipeline.run_scrape(conn, fetch=_fetch_never_called)
 
+    own_uid = pipeline.make_uid("haraz", raw.street, raw.city, "TX")
+    first_seen = conn.execute(
+        "SELECT first_seen FROM locations WHERE uid=?", (own_uid,)
+    ).fetchone()["first_seen"]
+
+    confirmer = _FakeConfirmer(
+        {raw.street: {"street": "343 N Main St", "published_uid": own_uid}}
+    )
     pipeline.run_scrape(conn, fetch=_fetch_never_called, confirmer=confirmer)
 
     rows = conn.execute("SELECT * FROM locations WHERE brand='haraz'").fetchall()
     assert len(rows) == 1
     assert rows[0]["uid"] == own_uid
+    assert rows[0]["street"] == "343 N Main St"
+    assert rows[0]["first_seen"] == first_seen
+    snaps = conn.execute(
+        "SELECT COUNT(*) FROM snapshots WHERE uid=?", (own_uid,)
+    ).fetchone()[0]
+    assert snaps == 2
+
+
+@pytest.mark.parametrize("corrections", [None, {}])
+def test_no_address_change_leaves_a_stored_spelling_untouched(
+    conn, manual_csv, monkeypatch, corrections
+):
+    """No confirmer at all, or one that doesn't touch this row (so
+    published_uid comes back None): either way the stored spelling stands.
+    """
+    raw = RawLocation(brand="haraz", street="343 N Main St.", city="Anytown",
+                       state="TX", postal="75001", status="open")
+    monkeypatch.setitem(pipeline.SCRAPERS, "haraz", lambda fetch: [raw])
+    pipeline.run_scrape(conn, fetch=_fetch_never_called)
+
+    confirmer = None if corrections is None else _FakeConfirmer(corrections)
+    pipeline.run_scrape(conn, fetch=_fetch_never_called, confirmer=confirmer)
+
+    row = conn.execute(
+        "SELECT street FROM locations WHERE brand='haraz'"
+    ).fetchone()
+    assert row["street"] == "343 N Main St."

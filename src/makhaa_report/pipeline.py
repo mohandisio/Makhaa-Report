@@ -159,7 +159,10 @@ def run_scrape(
     # that old uid forward). Either way source_uid is where the row may
     # already live and target_uid is where it belongs now; rekey_location
     # moves it there (row and snapshots), or merge_into folds it onto a
-    # copy already filed under target_uid from an earlier run.
+    # copy already filed under target_uid from an earlier run. The uid is
+    # punctuation-blind, so a spelling-only fix leaves target_uid equal to
+    # source_uid — published_uid still names it, and rekey_location runs
+    # in place to carry the corrected street/city/postal onto the stored row.
     with conn:
         taken = {r[0] for r in conn.execute("SELECT uid FROM locations")}
         for loc in locations.values():
@@ -183,6 +186,14 @@ def run_scrape(
                 taken.discard(source_uid)
                 taken.add(target_uid)
                 loc.uid = target_uid
+            elif loc.published_uid is not None:
+                # The confirmer changed the spelling or postal but the uid
+                # stayed put (punctuation-blind). _UPSERT deliberately
+                # leaves street/city alone — a plain scrape may not be
+                # confirmed — but a confirmed spelling is authoritative, so
+                # rekey it in place before the upsert below.
+                db.rekey_location(conn, loc.uid, loc.uid,
+                                  loc.street, loc.city, loc.postal)
             db.upsert_location(conn, loc)
             if confirmer is not None and not loc.is_manual:
                 # _UPSERT deliberately never touches geocode_flagged, so the

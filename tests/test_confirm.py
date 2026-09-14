@@ -81,7 +81,22 @@ def test_adoption_that_only_fills_the_postal_leaves_the_uid_alone(tmp_path):
 
     assert out[0].postal == "32826"
     assert out[0].street == "1737 N Alafaya Trl"
-    assert out[0].published_uid is None
+    assert out[0].published_uid == make_uid(row.brand, out[0].street, out[0].city, row.state)
+
+
+def test_adoption_that_only_drops_a_period_keeps_the_uid_and_sets_it(tmp_path):
+    # "St." and "St" hash to the same uid — make_uid strips punctuation —
+    # so this is a spelling-only adoption, not a move.
+    row = _row(street="343 N Main St.", city="Anytown", state="TX", postal="75001")
+    old_uid = make_uid(row.brand, row.street, row.city, row.state)
+    post = _responder({"343 N Main St.": "343 N MAIN ST, ANYTOWN, TX, 75001"})
+
+    out = AddressConfirmer(tmp_path, post=post).confirm([row])
+
+    assert out[0].street == "343 N Main St"
+    new_uid = make_uid(row.brand, out[0].street, out[0].city, row.state)
+    assert new_uid == old_uid
+    assert out[0].published_uid == old_uid
 
 
 def test_non_exact_match_keeps_the_address_and_flags(tmp_path):
