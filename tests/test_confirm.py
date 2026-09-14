@@ -205,6 +205,41 @@ def test_a_failing_post_keeps_cached_adoptions_and_flags_the_rest(tmp_path):
     assert out[1].geocode_flagged is True
 
 
+def test_a_failing_post_warns_about_only_the_uncached_rows(caplog, tmp_path):
+    cached_row_a = _row(street="1737 N Alafaya Trail", city="Orlando",
+                         state="FL", postal="32826")
+    cached_row_b = _row(street="4341 14th St", city="Plano",
+                         state="TX", postal="75074")
+    new_row = _row(street="99999 Fakery Blvd", city="Nowhere",
+                    state="TX", postal="77449")
+    post = _responder({
+        "1737 N Alafaya Trail": "1737 N ALAFAYA TRL, ORLANDO, FL, 32826",
+        "4341 14th St": "4341 14TH PL, PLANO, TX, 75074",
+    })
+    AddressConfirmer(tmp_path, post=post, get=_osm(), sleep=lambda _s: None).confirm(
+        [cached_row_a, cached_row_b]
+    )
+
+    def broken(body: str) -> str:
+        raise OSError("connection reset")
+
+    caplog.set_level("WARNING", logger="makhaa")
+    out = AddressConfirmer(tmp_path, post=broken, get=_osm(), sleep=lambda _s: None).confirm(
+        [cached_row_a, cached_row_b, new_row]
+    )
+
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "1 " in warnings[0].getMessage() or "1 address" in warnings[0].getMessage()
+    assert "3" not in warnings[0].getMessage()
+    assert out[0].street == "1737 N Alafaya Trl"
+    assert out[0].geocode_flagged is False
+    assert out[1].street == "4341 14th Pl"
+    assert out[1].geocode_flagged is False
+    assert out[2].street == "99999 Fakery Blvd"
+    assert out[2].geocode_flagged is True
+
+
 def test_output_order_and_length_match_the_input(tmp_path):
     rows = [
         _row(brand="haraz", street="1737 N Alafaya Trail", city="Orlando",

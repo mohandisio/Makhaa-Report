@@ -62,14 +62,17 @@ class AddressConfirmer:
                     list(queries.values()), self._cache, post=self._post
                 )
             except (OSError, ValueError, csv.Error) as exc:
-                log.warning(
-                    "census: lookup failed for %d addresses — %s", len(queries), exc
-                )
                 matches = {}
                 for key, q in queries.items():
                     hit = self._cache.get(q)
                     if hit is not None:
                         matches[key] = hit
+                unanswered = len(queries) - len(matches)
+                log.warning(
+                    "census: lookup failed — %d addresses left unanswered, "
+                    "%d answered from cache — %s",
+                    unanswered, len(matches), exc,
+                )
 
         counts = {"confirmed": 0, "adopted": 0, "unconfirmed": 0, "unanswered": 0}
         osm_pending: list[int] = []
