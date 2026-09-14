@@ -348,6 +348,20 @@ BRANDS: tuple[Brand, ...] = (
             "is what actually distinguishes coming-soon from open."
         ),
     ),
+    Brand(
+        slug="qahwah_valley",
+        display_name="Qahwah Valley",
+        locator_url="https://qahwahvalley.com/",
+        method="scrape",
+        notes=(
+            "Not to be confused with Qahwah House. No dedicated "
+            "locations page — every store sits in a schema.org "
+            "`Organization` block's `location` array on the home page, "
+            "each a `Restaurant` entry with a `PostalAddress`, "
+            "coordinates and phone. No coming-soon or closed marker "
+            "appears in the feed, so every row is recorded open."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
