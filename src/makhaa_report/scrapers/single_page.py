@@ -543,49 +543,11 @@ def scrape_sanaa_cafe(fetch: Fetch) -> list[RawLocation]:
     return rows
 
 
-SOCOTRA_URL = "https://socotracoffeehouse.framer.website"
 MOCHABOX_URL = "https://mochaboxcoffee.com"
 
 # A postcode with too many digits: real on MochaBox's site, and worth
 # dropping rather than truncating into a plausible-looking wrong ZIP.
 _BAD_POSTAL = re.compile(r",?\s*\d{6,}\s*$")
-
-
-def scrape_socotra(fetch: Fetch) -> list[RawLocation]:
-    """Socotra Coffee House.
-
-    Framer, but server-rendered: the single cafe's address sits whole
-    inside a map link.
-    """
-    soup = BeautifulSoup(fetch(SOCOTRA_URL), "lxml")
-    for tag in soup.find_all(["script", "style"]):
-        tag.decompose()
-
-    rows: list[RawLocation] = []
-    seen: set[tuple[str, str]] = set()
-
-    for node in soup.find_all(string=_LOOKS_LIKE_ADDRESS):
-        address = split_us_address(" ".join(str(node).split()))
-        if address is None:
-            continue
-        street, city, state, postal = address
-        if (street, city) in seen:
-            continue
-        seen.add((street, city))
-        rows.append(
-            RawLocation(
-                brand="socotra",
-                street=street,
-                city=city,
-                state=state,
-                postal=postal,
-                status="open",
-                source_url=SOCOTRA_URL,
-                fragment=" ".join(str(node).split()),
-            )
-        )
-
-    return rows
 
 
 def scrape_mochabox(fetch: Fetch) -> list[RawLocation]:

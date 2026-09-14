@@ -4,13 +4,9 @@ differently. Each test pins the quirk that made its scraper necessary.
 
 import pytest
 
-from makhaa_report.scrapers.single_page import (
-    scrape_mochabox,
-    scrape_socotra,
-)
+from makhaa_report.scrapers.single_page import scrape_mochabox
 
 CASES = [
-    ("socotra", scrape_socotra, 1, "3130 Packard St", "Ann Arbor", "MI", "48108"),
     ("mochabox", scrape_mochabox, 1, "1050 Haywood Rd", "Asheville", "NC", None),
 ]
 

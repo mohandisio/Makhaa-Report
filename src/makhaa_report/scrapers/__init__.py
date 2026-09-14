@@ -20,6 +20,7 @@ from .brands.qamaria import Qamaria
 from .brands.queen import Queen
 from .brands.qishr import Qishr
 from .brands.shibam import Shibam
+from .brands.socotra import Socotra
 from .single_page import (
     scrape_arwa,
     scrape_caffeena,
@@ -31,13 +32,12 @@ from .single_page import (
     scrape_mokafe,
     scrape_qatra,
     scrape_sanaa_cafe,
-    scrape_socotra,
 )
 
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
 
 SCRAPERS: dict[str, ScrapeFn] = {
-    "socotra": scrape_socotra,
+    "socotra": Socotra.scrape,
     "queen": Queen.scrape,
     "original_mocha": OriginalMocha.scrape,
     "mochabox": scrape_mochabox,
