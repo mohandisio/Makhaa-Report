@@ -21,6 +21,21 @@ uv run makhaa-report diff A B   # compare two runs (not built yet)
 
 Exit codes: 0 ok, 1 any brand failed, 2 usage error.
 
+Both `scrape` and `manual-entry` confirm addresses before uids are hashed
+from them. Each scraped address is checked against the US Census batch
+geocoder: an exact match adopts the canonical spelling and, when the
+locator publishes no coordinates or publishes a pin outside the US or
+more than 2 km from the match, adopts the Census point too. An address
+Census cannot confirm is asked of OpenStreetMap, which can confirm the
+address exists and place it but never rewrites it. A row neither service
+confirms is written as scraped and flagged. A Census or OpenStreetMap
+outage never fails a run: rows pass through as published, flagged, and
+nothing is cached, so a later run picks them up and refiles them under
+the confirmed uid once it succeeds. A row named in `overrides.csv` keeps
+its published spelling so the override keeps matching. `geocode` remains
+useful as a check — `--dry-run` shows what would still change — and for
+databases written before confirmation existed.
+
 ## Weekly ritual (manual for now)
 
 1. `uv run makhaa-report scrape` — whatever a scraper returns is what
@@ -41,7 +56,10 @@ Nothing generated is committed.
 Honest User-Agent with contact address, one request per second,
 single-threaded, weekly (~50 requests per sweep). If a brand actively
 challenges scraping, move it to manual entry in `data/manual/`
-rather than escalating.
+rather than escalating. Each sweep also makes one Census batch request
+for addresses not yet cached and at most one OpenStreetMap request per
+second for the few Census can't confirm, with answers cached under
+`data/geo/`.
 
 ## Data
 
@@ -61,9 +79,12 @@ do it for you.
 
 1. Scrapers run; two scraped rows sharing a uid means something is wrong,
    so the first wins and the run says so.
-2. Manual entries land on top. A manual row for an address a scraper also
+2. Each scraped address is confirmed against the Census geocoder, and
+   against OpenStreetMap where Census can't, before its uid is hashed —
+   see the command walkthrough above for how a match is decided.
+3. Manual entries land on top. A manual row for an address a scraper also
    found **replaces** it — somebody checked that one by hand.
-3. `overrides.csv` applies last, so a correction beats everything.
+4. `overrides.csv` applies last, so a correction beats everything.
 
 The uid is a hash of brand plus normalized address, which is what lets a
 manual entry line up with the scraped row it corrects.
