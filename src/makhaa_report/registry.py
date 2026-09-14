@@ -362,6 +362,19 @@ BRANDS: tuple[Brand, ...] = (
             "appears in the feed, so every row is recorded open."
         ),
     ),
+    Brand(
+        slug="raha",
+        display_name="Raha Coffee House",
+        locator_url="https://rahacoffeehouse.com/",
+        method="scrape",
+        notes=(
+            "A single-cafe site with no locator; its one Buffalo address "
+            "appears in plain text on the home page and again in the "
+            "sitewide footer, and both collapse to one row through the "
+            "base class's dedupe. No coordinates or ld+json are "
+            "published."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (

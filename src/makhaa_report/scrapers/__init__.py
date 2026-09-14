@@ -33,6 +33,7 @@ from .brands.qamaria import Qamaria
 from .brands.qatra import Qatra
 from .brands.qishr import Qishr
 from .brands.queen import Queen
+from .brands.raha import Raha
 from .brands.sanaa_cafe import SanaaCafe
 from .brands.shibam import Shibam
 from .brands.socotra import Socotra
@@ -63,6 +64,7 @@ SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
     Qatra,
     Qishr,
     Queen,
+    Raha,
     SanaaCafe,
     Shibam,
     Socotra,
