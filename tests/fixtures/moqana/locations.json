@@ -1,0 +1,41 @@
+[
+  {
+    "name": "MoQana Norman",
+    "address": "1808 W Lindsey St  ",
+    "city": "Norman",
+    "state": "OK",
+    "zip": "73069",
+    "lat": 35.2159,
+    "lng": -97.4681,
+    "phone": "",
+    "hours": "",
+    "status": "coming_soon",
+    "active": true
+  },
+  {
+    "name": "MoQana- Edmond",
+    "address": "432 S Santa Fe Ave",
+    "city": "Edmond",
+    "state": "OK",
+    "zip": "73003",
+    "lat": 35.65181,
+    "lng": -97.51381,
+    "phone": "4059062268",
+    "hours": "Mon-Thurs 7am-10pm, Friday 7am-12am, Sat 8am-12am, Sun 8am-10pm",
+    "status": "open",
+    "active": true
+  },
+  {
+    "name": "MoQana-Cordova",
+    "address": "1105 N Houston Levee Rd",
+    "city": "Cordova",
+    "state": "TN",
+    "zip": "38018",
+    "lat": 35.155277,
+    "lng": -89.727959,
+    "phone": "(405) 555-0102",
+    "hours": "Mon-Sun 6:30am-9pm",
+    "status": "open",
+    "active": true
+  }
+]

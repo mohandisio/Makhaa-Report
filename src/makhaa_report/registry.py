@@ -334,6 +334,20 @@ BRANDS: tuple[Brand, ...] = (
             "clocks, not a status field, so every row is recorded open."
         ),
     ),
+    Brand(
+        slug="moqana",
+        display_name="MoQana Coffee",
+        locator_url="https://moqana.com/location",
+        method="scrape",
+        alt_domains=("moqana.coffee",),
+        notes=(
+            "Built on the base44 no-code platform; the locations page is "
+            "client-rendered from a JSON API found in the JS bundle, not "
+            "a third-party locator embed. Each record's `active` flag is "
+            "true even for the coming-soon store, so the `status` field "
+            "is what actually distinguishes coming-soon from open."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
