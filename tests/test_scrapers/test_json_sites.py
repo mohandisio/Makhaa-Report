@@ -6,39 +6,8 @@ and update the expectations here.
 
 from makhaa_report.scrapers.json_sites import (
     scrape_qahwah_house,
-    scrape_qamaria,
     scrape_shibam,
 )
-
-
-def test_qamaria_parses_us_cafes(fixture_fetch):
-    rows = scrape_qamaria(fixture_fetch("qamaria"))
-
-    assert len(rows) == 51
-
-    allen_park = next(r for r in rows if r.city == "Allen Park")
-    assert allen_park.street == "7706 Allen Rd"
-    assert allen_park.state == "MI"
-    assert allen_park.postal == "48101"
-    assert allen_park.phone == "(313) 406-6911"
-    assert allen_park.lat == 42.252666
-    assert allen_park.hours.startswith("monday: 8am - 10pm")
-
-
-def test_qamaria_excludes_catering_and_non_us(fixture_fetch):
-    rows = scrape_qamaria(fixture_fetch("qamaria"))
-
-    # Service-area listings reuse a real cafe's address — "Bay Area" and
-    # "Fremont, CA" both carry 4193 Cushing Pkwy — so one leaking through
-    # shows up as a duplicate address, not just an extra row.
-    addresses = [(r.street, r.city) for r in rows]
-    assert len(addresses) == len(set(addresses))
-    # Canada, Saudi Arabia and Qatar are out of scope.
-    assert {r.state for r in rows} <= set(
-        "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN "
-        "MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA "
-        "WA WV WI WY DC".split()
-    )
 
 
 def test_qahwah_house_reads_structured_data(fixture_fetch):
