@@ -319,6 +319,21 @@ BRANDS: tuple[Brand, ...] = (
             "embed is published."
         ),
     ),
+    Brand(
+        slug="bayt_almocha",
+        display_name="Bayt Almocha",
+        locator_url="https://baytalmocha.com/find-location",
+        method="scrape",
+        notes=(
+            "Every store's address and coordinates sit in an inline "
+            "Alpine.js `staticPoints` JSON array on the /find-location "
+            "page rather than a separate API. Punctuation is "
+            "inconsistent between records; one store publishes two ZIPs "
+            "glued onto the same tail, and the one next to the state is "
+            "kept. The page's \"Closed\"/\"Open until\" labels are live "
+            "clocks, not a status field, so every row is recorded open."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
