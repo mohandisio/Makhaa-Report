@@ -6,11 +6,13 @@ these functions re-keys the database and must be treated as a migration.
 
 import pytest
 
+from makhaa_report.models import RawLocation
 from makhaa_report.normalize import (
     make_uid,
     normalize_state,
     normalize_status,
     split_us_address,
+    to_location,
 )
 
 
@@ -81,3 +83,41 @@ def test_status_mapping():
     assert normalize_status("NOW OPEN") == "open"
     assert normalize_status("Coming Soon!") == "coming_soon"
     assert normalize_status("gibberish") == "unknown"
+
+
+def _raw(**overrides):
+    fields = dict(brand="haraz", street="123 Main St", city="Dearborn", state="MI")
+    fields.update(overrides)
+    return RawLocation(**fields)
+
+
+def test_to_location_uses_confirmer_geocode_source_when_coords_present():
+    raw = _raw(lat=42.3, lon=-83.2, geocode_source="census")
+    assert to_location(raw, "2026-01-01T00:00:00Z").geocode_source == "census"
+
+
+def test_to_location_ignores_confirmer_geocode_source_without_coords():
+    raw = _raw(geocode_source="census")
+    assert to_location(raw, "2026-01-01T00:00:00Z").geocode_source is None
+
+
+def test_to_location_defaults_to_locator_when_confirmer_silent():
+    raw = _raw(lat=42.3, lon=-83.2)
+    assert to_location(raw, "2026-01-01T00:00:00Z").geocode_source == "locator"
+
+
+def test_to_location_copies_geocode_flagged():
+    raw = _raw(geocode_flagged=True)
+    assert to_location(raw, "2026-01-01T00:00:00Z").geocode_flagged is True
+
+
+def test_to_location_copies_published_uid():
+    raw = _raw(published_uid="deadbeefcafebabe")
+    assert to_location(raw, "2026-01-01T00:00:00Z").published_uid == "deadbeefcafebabe"
+
+
+def test_to_location_defaults_leave_new_fields_unset():
+    raw = _raw()
+    loc = to_location(raw, "2026-01-01T00:00:00Z")
+    assert loc.geocode_flagged is False
+    assert loc.published_uid is None

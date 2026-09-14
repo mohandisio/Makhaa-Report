@@ -363,11 +363,11 @@ def to_location(raw: RawLocation, now_iso: str, *, is_manual: bool = False) -> L
         lat=raw.lat,
         lon=raw.lon,
         geocode_source=(
-            ("manual" if is_manual else "locator")
+            (raw.geocode_source or ("manual" if is_manual else "locator"))
             if raw.lat is not None and raw.lon is not None
             else None
         ),
-        geocode_flagged=False,
+        geocode_flagged=raw.geocode_flagged,
         status=normalize_status(raw.status),
         status_note=raw.status_note.strip(),
         phone=raw.phone,
@@ -377,4 +377,5 @@ def to_location(raw: RawLocation, now_iso: str, *, is_manual: bool = False) -> L
         first_seen=now_iso,
         last_seen=now_iso,
         fragment=raw.fragment,
+        published_uid=raw.published_uid,
     )

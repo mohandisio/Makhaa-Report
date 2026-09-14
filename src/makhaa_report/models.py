@@ -29,6 +29,16 @@ class RawLocation:
     hours: str | None = None  # verbatim, never parsed
     source_url: str = ""
     fragment: str = ""  # verbatim scraped snippet, lands in snapshots
+    # "census" or "nominatim" when the address confirmer supplied lat/lon;
+    # None when it didn't run or didn't touch coordinates.
+    geocode_source: str | None = None
+    # The confirmer couldn't confirm the address, or the coordinates it
+    # got back are missing or fall outside the US.
+    geocode_flagged: bool = False
+    # The uid this row hashed to before the confirmer rewrote its address;
+    # None when the address was left alone. Lets the write step refile a
+    # row stored under the old uid.
+    published_uid: str | None = None
 
 
 @dataclass
@@ -61,6 +71,9 @@ class Location:
     opened_confidence: str | None = None  # confirmed | high | medium | low
     opened_source: str | None = None
     fragment: str = ""  # transient; persisted only via snapshots
+    # transient; not a table column. Carried from the raw row so the write
+    # step can refile a row the confirmer moved to a new uid.
+    published_uid: str | None = None
 
 
 @dataclass(frozen=True)

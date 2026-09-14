@@ -66,9 +66,13 @@ CREATE TABLE IF NOT EXISTS snapshots (
 CREATE INDEX IF NOT EXISTS idx_snapshots_uid ON snapshots(uid);
 """
 
-# Every Location field is a column except transient `fragment`.
+# Location fields that live on the dataclass for the run but aren't
+# table columns: `fragment` is persisted only via snapshots, and
+# `published_uid` is read by the write step, not stored.
+_TRANSIENT_LOCATION_FIELDS = ("fragment", "published_uid")
+
 _LOCATION_COLS = tuple(
-    f.name for f in dataclasses.fields(Location) if f.name != "fragment"
+    f.name for f in dataclasses.fields(Location) if f.name not in _TRANSIENT_LOCATION_FIELDS
 )
 
 # Fields a fresh scrape may overwrite on an existing row. first_seen is
