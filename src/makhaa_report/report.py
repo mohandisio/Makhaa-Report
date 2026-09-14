@@ -11,6 +11,7 @@ from pathlib import Path
 from jinja2 import Environment, PackageLoader
 
 from . import config
+from .geo import distance_km
 from .models import STATUSES, utcnow_iso
 
 # Okabe-Ito palette: colorblind-safe, distinct on a light map background.
@@ -112,6 +113,84 @@ def city_diversity(conn: sqlite3.Connection, limit: int = 15) -> list[dict]:
         (limit,),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _metro_from_shops(name: str, shops: list[dict]) -> dict:
+    total = len(shops)
+    brand_counts: dict[str, dict] = {}
+    for s in shops:
+        b = brand_counts.setdefault(
+            s["slug"], {"slug": s["slug"], "display_name": s["display_name"], "count": 0}
+        )
+        b["count"] += 1
+    brands = sorted(brand_counts.values(), key=lambda b: (-b["count"], b["display_name"]))
+    dates = [s["opened_date"] for s in shops if s["opened_date"]]
+    return {
+        "name": name,
+        "center": {
+            "lat": sum(s["lat"] for s in shops) / total,
+            "lon": sum(s["lon"] for s in shops) / total,
+        },
+        "uids": [s["uid"] for s in shops],
+        "total": total,
+        "open": sum(1 for s in shops if s["status"] == "open"),
+        "coming_soon": sum(1 for s in shops if s["status"] == "coming_soon"),
+        "brands": brands,
+        "top_share": round(brands[0]["count"] / total, 2) if brands else 0.0,
+        "first_opening": min(dates) if dates else None,
+        "dated": len(dates),
+    }
+
+
+def metro_areas(conn: sqlite3.Connection, *, radius_km: float = 40.0,
+                limit: int = 8) -> list[dict]:
+    """Metro clusters derived from the data, not a hand-curated list.
+
+    Greedy by city size: the busiest not-yet-absorbed city claims every
+    still-unassigned mapped shop within `radius_km` of its centroid, and
+    is named after that city. Repeats until cities are exhausted.
+    """
+    rows = conn.execute(
+        """SELECT l.uid, l.brand AS slug, b.display_name, l.city, l.state,
+                  l.lat, l.lon, l.status, l.opened_date
+           FROM locations l JOIN brands b ON b.slug = l.brand
+           WHERE l.lat IS NOT NULL AND l.lon IS NOT NULL"""
+    ).fetchall()
+    shops = [dict(r) for r in rows]
+
+    by_city: dict[tuple[str, str], list[dict]] = {}
+    for s in shops:
+        by_city.setdefault((s["city"], s["state"]), []).append(s)
+
+    cities = [
+        {
+            "city": city, "state": state,
+            "lat": sum(s["lat"] for s in members) / len(members),
+            "lon": sum(s["lon"] for s in members) / len(members),
+            "count": len(members),
+        }
+        for (city, state), members in by_city.items()
+    ]
+    cities.sort(key=lambda c: (-c["count"], c["city"], c["state"]))
+
+    assigned: set[str] = set()
+    metros = []
+    for c in cities:
+        city_uids = {s["uid"] for s in by_city[(c["city"], c["state"])]}
+        if city_uids <= assigned:
+            continue  # already absorbed by a bigger metro
+        near = [
+            s for s in shops
+            if s["uid"] not in assigned
+            and distance_km(c["lat"], c["lon"], s["lat"], s["lon"]) <= radius_km
+        ]
+        if not near:
+            continue
+        assigned.update(s["uid"] for s in near)
+        metros.append(_metro_from_shops(f"{c['city']}, {c['state']}", near))
+
+    metros.sort(key=lambda m: (-m["total"], m["name"]))
+    return metros[:limit]
 
 
 def coming_soon_by_state(conn: sqlite3.Connection) -> list[dict]:
@@ -348,6 +427,14 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
     # popups display, nothing that reads like a raw dataset row.
     public = ("brand", "brand_name", "street", "city", "state",
               "lat", "lon", "status", "phone", "hours")
+    payload_shops = [{k: s[k] for k in public} for s in mapped]
+    shop_index_by_uid = {s["uid"]: i for i, s in enumerate(mapped)}
+    payload_metros = []
+    for metro in metro_areas(conn):
+        m = {k: v for k, v in metro.items() if k != "uids"}
+        m["shops"] = [shop_index_by_uid[uid] for uid in metro["uids"]
+                      if uid in shop_index_by_uid]
+        payload_metros.append(m)
     return {
         "generated_at": generated_at,
         "data_as_of": data_as_of(conn),
@@ -357,7 +444,7 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
         "unmapped": unmapped,
         "faq": faq(conn, generated_at[:10]),
         "payload": {
-            "shops": [{k: s[k] for k in public} for s in mapped],
+            "shops": payload_shops,
             "brands": brands,
             "brand_colors": colors,
             "states": state_counts(conn),
@@ -367,6 +454,7 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
             "coming_soon": coming_soon_by_state(conn),
             "concentration": market_concentration(conn),
             "openings_by_year": openings_by_year(conn),
+            "metros": payload_metros,
         },
     }
 

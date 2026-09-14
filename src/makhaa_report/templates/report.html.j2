@@ -59,6 +59,24 @@
   .faq-grid .chart-box h3 { margin: 0 0 .5rem; font-size: 1rem; }
   .faq-grid .chart-box p.answer { margin: 0 0 .5rem; font-size: 1.1rem; }
   .faq-grid .chart-box p.note { margin: 0; }
+  .metro summary { list-style: none; cursor: pointer; margin: 2.5rem 0 .75rem;
+                   font-size: 1.25rem; font-weight: 600; }
+  .metro summary::-webkit-details-marker { display: none; }
+  .metro summary::before { content: "\25B8"; display: inline-block; margin-right: .4em;
+                            transition: transform .15s ease; }
+  .metro[open] summary::before { transform: rotate(90deg); }
+  .metro[open] summary { margin-bottom: .75rem; }
+  #metro-select { font: inherit; padding: .35rem .5rem; margin-bottom: .75rem;
+                  border: 1px solid var(--line); border-radius: 6px; }
+  .metro-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 1rem; }
+  @media (max-width: 760px) { .metro-layout { grid-template-columns: 1fr; } }
+  #metro-map { height: 360px; border: 1px solid var(--line); border-radius: 8px; }
+  .metro-stats dt { color: var(--muted); font-size: .8rem; margin-top: .6rem; }
+  .metro-stats dt:first-child { margin-top: 0; }
+  .metro-stats dd { margin: 0; font-size: 1.05rem; }
+  .metro-stats ul { list-style: none; margin: 0; padding: 0; }
+  .metro-stats li { display: flex; justify-content: space-between; font-size: .9rem;
+                     padding: .15rem 0; }
 </style>
 </head>
 <body>
@@ -149,6 +167,19 @@
     <div class="chart-box"><canvas id="diversity-chart"></canvas></div>
   </div>
 </section>
+
+<details class="metro">
+  <summary>Explore a metro area</summary>
+  <select id="metro-select">
+    {% for m in payload.metros %}
+    <option value="{{ loop.index0 }}">{{ m.name }} ({{ m.total }})</option>
+    {% endfor %}
+  </select>
+  <div class="metro-layout">
+    <div id="metro-map"></div>
+    <dl class="metro-stats" id="metro-stats"></dl>
+  </div>
+</details>
 
 <section>
   <h2>Growth over time</h2>
@@ -404,6 +435,80 @@ new Chart(document.getElementById("openings-by-year-chart"), {
               y: { stacked: true, ticks: { precision: 0 } } },
   },
 });
+
+/* ---- Metro explorer ------------------------------------------------ */
+{
+  const details = document.querySelector(".metro");
+  const select = document.getElementById("metro-select");
+  const statsEl = document.getElementById("metro-stats");
+  let metroMap = null;
+  let metroLayer = null;
+
+  function renderStats(metro) {
+    const brandRows = metro.brands.map(b =>
+      `<li><span>${b.display_name}</span><span>${b.count}</span></li>`).join("");
+    statsEl.innerHTML = `
+      <dt>Shops</dt><dd>${metro.total}</dd>
+      <dt>Open vs announced</dt><dd>${metro.open} open, ${metro.coming_soon} coming soon</dd>
+      <dt>Brands</dt><dd><ul>${brandRows}</ul></dd>
+      <dt>Top brand share</dt><dd>${Math.round(metro.top_share * 100)}%</dd>
+      <dt>First dated opening</dt>
+      <dd>${metro.first_opening ?? "unknown"} (${metro.dated} of ${metro.total} dated)</dd>
+    `;
+  }
+
+  function renderMap(metro) {
+    if (!metroMap) return;
+    if (metroLayer) metroMap.removeLayer(metroLayer);
+    metroLayer = L.layerGroup();
+    const bounds = L.latLngBounds([]);
+    for (const i of metro.shops) {
+      const shop = DATA.shops[i];
+      if (!shop) continue;
+      const marker = L.circleMarker([shop.lat, shop.lon], {
+        radius: 6, weight: 1, fillOpacity: 0.85,
+        color: "#ffffff", fillColor: DATA.brand_colors[shop.brand],
+      }).bindPopup(popupFor(shop));
+      metroLayer.addLayer(marker);
+      bounds.extend([shop.lat, shop.lon]);
+    }
+    metroLayer.addTo(metroMap);
+    if (bounds.isValid()) {
+      metroMap.fitBounds(bounds.pad(0.1));
+    } else {
+      metroMap.setView([metro.center.lat, metro.center.lon], 10);
+    }
+  }
+
+  function showSelected() {
+    const metro = DATA.metros[Number(select.value)];
+    if (!metro) return;
+    renderStats(metro);
+    renderMap(metro);
+  }
+
+  function ensureMap() {
+    if (metroMap) return;
+    metroMap = L.map("metro-map", { scrollWheelZoom: true });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(metroMap);
+    metroMap.invalidateSize();
+    showSelected();
+  }
+
+  if (DATA.metros.length) {
+    renderStats(DATA.metros[0]);
+    details.addEventListener("toggle", () => {
+      if (details.open) ensureMap();
+    });
+    select.addEventListener("change", showSelected);
+    window.addEventListener("resize", () => {
+      if (metroMap) metroMap.invalidateSize();
+    });
+  }
+}
 
 const STATUS_COLORS = { coming_soon: "#D55E00", open: "#009E73", relocating: "#CC79A7",
                         closed_permanently: "#9aa0a6", unknown: "#F0E442" };

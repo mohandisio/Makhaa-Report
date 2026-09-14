@@ -205,6 +205,35 @@ def test_embedded_json_matches_db(conn, tmp_path):
                                         "phone", "hours"}
 
 
+def test_metros_payload_has_no_uids(metro_conn, tmp_path):
+    """The metros payload must reference shops by index into payload.shops,
+    never by the dataset's uid — same rule as the shops payload itself."""
+    context = report.build_context(metro_conn, generated_at=FIXED_TS)
+    db_uids = {row["uid"] for row in metro_conn.execute("SELECT uid FROM locations")}
+    for metro in context["payload"]["metros"]:
+        assert "uids" not in metro
+        assert "shops" in metro
+        for i in metro["shops"]:
+            assert isinstance(i, int)
+            assert 0 <= i < len(context["payload"]["shops"])
+
+    path = report.write_report(metro_conn, tmp_path / "out" / "report.html",
+                               generated_at=FIXED_TS)
+    html = path.read_text(encoding="utf-8")
+    for uid in db_uids:
+        assert uid not in html
+
+
+def test_metros_payload_shops_resolve_to_metro_area(metro_conn):
+    context = report.build_context(metro_conn, generated_at=FIXED_TS)
+    payload = context["payload"]
+    dearborn = payload["metros"][0]
+    assert dearborn["name"] == "Dearborn, MI"
+    resolved = [payload["shops"][i] for i in dearborn["shops"]]
+    assert len(resolved) == 4
+    assert all(s["city"] == "Dearborn" and s["state"] == "MI" for s in resolved)
+
+
 def test_hostile_field_is_escaped(conn, tmp_path):
     hostile = "</script><script>alert(1)</script>"
     conn.execute("UPDATE locations SET hours = ? WHERE uid = 'aaa1'", (hostile,))
@@ -315,6 +344,97 @@ def test_faq_wired_into_build_context(faq_conn):
     context = report.build_context(faq_conn, generated_at=f"{_FAQ_TODAY}T00:00:00Z")
     assert len(context["faq"]) == 6
     assert context["faq"][0]["answer"] == "Alpha Coffee: 5 shops across 2 states."
+
+
+_METRO_BRANDS = (
+    Brand(slug="alpha", display_name="Alpha Coffee", locator_url="https://a.test",
+          method="scrape"),
+    Brand(slug="beta", display_name="Beta Coffee", locator_url="https://b.test",
+          method="scrape"),
+)
+
+_METRO_LOCATIONS = (
+    # Dearborn, MI cluster: 4 shops, mixed brands, one coming_soon, two dated
+    _loc("d1", "alpha", "1 Oak St", "Dearborn", "MI", lat=42.322, lon=-83.176,
+         opened_date="2024-01", opened_confidence="high"),
+    _loc("d2", "alpha", "2 Elm St", "Dearborn", "MI", lat=42.325, lon=-83.170,
+         opened_date="2024-06", opened_confidence="high"),
+    _loc("d3", "beta", "3 Pine St", "Dearborn", "MI", lat=42.318, lon=-83.180),
+    _loc("d4", "beta", "4 Ash St", "Dearborn", "MI", lat=42.330, lon=-83.165,
+         status="coming_soon"),
+    # Brooklyn, NY cluster: 2 shops, one dated
+    _loc("b1", "alpha", "5 Fir St", "Brooklyn", "NY", lat=40.678, lon=-73.944,
+         opened_date="2023-05", opened_confidence="high"),
+    _loc("b2", "beta", "6 Yew St", "Brooklyn", "NY", lat=40.680, lon=-73.950),
+    # Far away, alone
+    _loc("f1", "alpha", "7 Cedar St", "Los Angeles", "CA", lat=34.052, lon=-118.244),
+)
+
+
+@pytest.fixture
+def metro_conn(tmp_path):
+    conn = db.connect(tmp_path / "metro.sqlite")
+    db.sync_registry(conn, _METRO_BRANDS, ())
+    for loc in _METRO_LOCATIONS:
+        db.upsert_location(conn, loc)
+    conn.commit()
+    return conn
+
+
+def test_metro_areas(metro_conn):
+    metros = report.metro_areas(metro_conn)
+    assert [m["name"] for m in metros] == ["Dearborn, MI", "Brooklyn, NY", "Los Angeles, CA"]
+
+    dearborn = metros[0]
+    assert dearborn["total"] == 4
+    assert set(dearborn["uids"]) == {"d1", "d2", "d3", "d4"}
+    assert dearborn["open"] == 3
+    assert dearborn["coming_soon"] == 1
+    assert dearborn["brands"] == [
+        {"slug": "alpha", "display_name": "Alpha Coffee", "count": 2},
+        {"slug": "beta", "display_name": "Beta Coffee", "count": 2},
+    ]
+    assert dearborn["top_share"] == 0.5
+    assert dearborn["first_opening"] == "2024-01"
+    assert dearborn["dated"] == 2
+
+    brooklyn = metros[1]
+    assert brooklyn["total"] == 2
+    assert set(brooklyn["uids"]) == {"b1", "b2"}
+    assert brooklyn["open"] == 2
+    assert brooklyn["coming_soon"] == 0
+    assert brooklyn["top_share"] == 0.5
+    assert brooklyn["first_opening"] == "2023-05"
+    assert brooklyn["dated"] == 1
+
+    la = metros[2]
+    assert la["total"] == 1
+    assert la["uids"] == ["f1"]
+    assert la["brands"] == [{"slug": "alpha", "display_name": "Alpha Coffee", "count": 1}]
+    assert la["top_share"] == 1.0
+    assert la["first_opening"] is None
+    assert la["dated"] == 0
+
+
+def test_metro_areas_limit(metro_conn):
+    metros = report.metro_areas(metro_conn, limit=1)
+    assert len(metros) == 1
+    assert metros[0]["name"] == "Dearborn, MI"
+
+
+def test_metro_section_rendered(metro_conn, tmp_path):
+    path = report.write_report(metro_conn, tmp_path / "out" / "report.html",
+                               generated_at=FIXED_TS)
+    html = path.read_text(encoding="utf-8")
+    match = re.search(
+        r'<details[^>]*class="metro"[^>]*>\s*<summary[^>]*>Explore a metro area</summary>',
+        html,
+    )
+    assert match is not None
+    details_tag = match.group(0).split(">")[0]
+    assert "open" not in details_tag  # collapsed by default
+    assert 'id="metro-select"' in html
+    assert 'id="metro-map"' in html
 
 
 def test_faq_section_rendered(faq_conn, tmp_path):
