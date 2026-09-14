@@ -154,6 +154,63 @@ def market_concentration(conn: sqlite3.Connection, min_shops: int = 5) -> list[d
     return out
 
 
+def openings_by_year(conn: sqlite3.Connection) -> dict:
+    """Dated shop openings grouped by year, stacked by brand.
+
+    Only brands with at least one dated opening appear in `series`; brands
+    outside the league table's top TOP_BRANDS are folded into one "other"
+    entry, matching the palette assignment in `brand_colors`.
+    """
+    brands = brand_table(conn)
+    top_slugs = {b["slug"] for b in brands[:TOP_BRANDS]}
+    top_names = {b["slug"]: b["display_name"] for b in brands[:TOP_BRANDS]}
+
+    rows = conn.execute(
+        """SELECT l.brand AS slug, substr(l.opened_date, 1, 4) AS year,
+                  COUNT(*) AS n
+           FROM locations l
+           WHERE l.opened_date IS NOT NULL
+           GROUP BY l.brand, year"""
+    ).fetchall()
+
+    years = sorted({r["year"] for r in rows})
+    buckets: dict[str, dict[str, int]] = {}
+    for r in rows:
+        key = r["slug"] if r["slug"] in top_slugs else "other"
+        buckets.setdefault(key, {})
+        buckets[key][r["year"]] = buckets[key].get(r["year"], 0) + r["n"]
+
+    order = [b["slug"] for b in brands[:TOP_BRANDS] if b["slug"] in buckets]
+    if "other" in buckets:
+        order.append("other")
+
+    series = [
+        {
+            "slug": key,
+            "display_name": top_names.get(key, "Other brands"),
+            "counts": [buckets[key].get(y, 0) for y in years],
+        }
+        for key in order
+    ]
+
+    dated = sum(r["n"] for r in rows)
+    total = conn.execute("SELECT COUNT(*) FROM locations").fetchone()[0]
+    confidence = {
+        r["opened_confidence"]: r["n"]
+        for r in conn.execute(
+            """SELECT opened_confidence, COUNT(*) AS n FROM locations
+               WHERE opened_date IS NOT NULL GROUP BY opened_confidence"""
+        )
+    }
+    return {
+        "years": years,
+        "series": series,
+        "dated": dated,
+        "undated": total - dated,
+        "confidence": confidence,
+    }
+
+
 def data_as_of(conn: sqlite3.Connection) -> str | None:
     """When the data itself last changed: the newest scrape run."""
     row = conn.execute(
@@ -190,6 +247,7 @@ def build_context(conn: sqlite3.Connection, generated_at: str | None = None) -> 
             "city_diversity": city_diversity(conn),
             "coming_soon": coming_soon_by_state(conn),
             "concentration": market_concentration(conn),
+            "openings_by_year": openings_by_year(conn),
         },
     }
 

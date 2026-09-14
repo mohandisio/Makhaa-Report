@@ -32,11 +32,15 @@ def _loc(uid: str, brand: str, street: str, city: str, state: str,
 
 
 _LOCATIONS = (
-    _loc("aaa1", "alpha", "1 Oak St", "Dearborn", "MI"),
-    _loc("aaa2", "alpha", "2 Elm St", "Dearborn", "MI"),
+    _loc("aaa1", "alpha", "1 Oak St", "Dearborn", "MI",
+         opened_date="2025-01", opened_confidence="confirmed"),
+    _loc("aaa2", "alpha", "2 Elm St", "Dearborn", "MI",
+         opened_date="2025-06", opened_confidence="high"),
     _loc("aaa3", "alpha", "3 Pine St", "Chicago", "IL", status="coming_soon"),
-    _loc("bbb1", "beta", "4 Ash St", "Chicago", "IL"),
-    _loc("bbb2", "beta", "5 Fir St", "Toledo", "OH", status="closed_permanently"),
+    _loc("bbb1", "beta", "4 Ash St", "Chicago", "IL",
+         opened_date="2024-11", opened_confidence="medium"),
+    _loc("bbb2", "beta", "5 Fir St", "Toledo", "OH", status="closed_permanently",
+         opened_date="2025-02", opened_confidence="low"),
     _loc("ccc1", "gamma", "6 Yew St", "Dallas", "TX", lat=None, lon=None,
          geocode_source=None, phone="555-0100", hours="7-3 daily"),
 )
@@ -137,6 +141,21 @@ def test_market_concentration(conn):
     assert report.market_concentration(conn, min_shops=5) == []
 
 
+def test_openings_by_year(conn):
+    data = report.openings_by_year(conn)
+    assert data["years"] == ["2024", "2025"]
+    series = {s["slug"]: s for s in data["series"]}
+    assert set(series) == {"alpha", "beta"}  # gamma has no dated opening
+    assert series["alpha"]["display_name"] == "Alpha Coffee"
+    assert series["alpha"]["counts"] == [0, 2]  # 2024, 2025
+    assert series["beta"]["counts"] == [1, 1]
+    assert data["dated"] == 4
+    assert data["undated"] == 2  # aaa3 (coming_soon) and ccc1 (unmapped)
+    assert data["confidence"] == {
+        "confirmed": 1, "high": 1, "medium": 1, "low": 1,
+    }
+
+
 def test_data_as_of(conn):
     assert report.data_as_of(conn) is None  # no runs yet
     run1 = db.start_run(conn, "2026-08-01T00:00:00Z")
@@ -192,3 +211,18 @@ def test_hostile_field_is_escaped(conn, tmp_path):
     conn.commit()
     _, html = _render(conn, tmp_path)
     assert hostile not in html  # tojson escapes <> so the tag cannot break out
+
+
+def test_about_section_is_collapsed_details(conn, tmp_path):
+    _, html = _render(conn, tmp_path)
+    match = re.search(r"<details[^>]*>\s*<summary[^>]*>About this data</summary>", html)
+    assert match is not None
+    details_tag = match.group(0).split(">")[0]
+    assert "open" not in details_tag  # collapsed by default
+
+
+def test_openings_by_year_chart_rendered(conn, tmp_path):
+    _, html = _render(conn, tmp_path)
+    assert 'id="openings-by-year-chart"' in html
+    assert "Historical data coming soon" not in html
+    assert "4 of 6 shops have a dated opening" in html
