@@ -269,28 +269,22 @@ _FAQ_TODAY = "2026-06-15"
 _FAQ_LOCATIONS = (
     # alpha: dated openings, two in the last 12 months (cutoff 2025-06)
     _loc("f1", "alpha", "1 Oak St", "Dearborn", "MI",
-         opened_date="2026-01", opened_confidence="confirmed", geocode_source="census"),
+         opened_date="2026-01", opened_confidence="confirmed"),
     _loc("f2", "alpha", "2 Elm St", "Dearborn", "MI",
-         opened_date="2026-02", opened_confidence="confirmed", geocode_source="census"),
+         opened_date="2026-02", opened_confidence="confirmed"),
     # alpha: dated opening outside the 12-month window
     _loc("f3", "alpha", "3 Pine St", "Chicago", "IL",
-         opened_date="2024-01", opened_confidence="high", geocode_source="nominatim"),
-    # beta: one dated opening in the window, flagged geocode
+         opened_date="2024-01", opened_confidence="high"),
+    # beta: one dated opening in the window
     _loc("f4", "beta", "4 Ash St", "Chicago", "IL",
-         opened_date="2026-03", opened_confidence="medium", geocode_source="nominatim",
-         geocode_flagged=True),
+         opened_date="2026-03", opened_confidence="medium"),
     # beta: announced, three in TX
-    _loc("f5", "beta", "5 Ash St", "Houston", "TX", status="coming_soon",
-         geocode_source="locator"),
-    _loc("f6", "beta", "6 Ash St", "Houston", "TX", status="coming_soon",
-         geocode_source="locator"),
-    _loc("f7", "beta", "7 Ash St", "Houston", "TX", status="coming_soon",
-         geocode_source="locator"),
+    _loc("f5", "beta", "5 Ash St", "Houston", "TX", status="coming_soon"),
+    _loc("f6", "beta", "6 Ash St", "Houston", "TX", status="coming_soon"),
+    _loc("f7", "beta", "7 Ash St", "Houston", "TX", status="coming_soon"),
     # alpha: announced, one each in IL and MI
-    _loc("f8", "alpha", "8 Pine St", "Chicago", "IL", status="coming_soon",
-         geocode_source="manual"),
-    _loc("f9", "alpha", "9 Oak St", "Detroit", "MI", status="coming_soon",
-         geocode_source="manual"),
+    _loc("f8", "alpha", "8 Pine St", "Chicago", "IL", status="coming_soon"),
+    _loc("f9", "alpha", "9 Oak St", "Detroit", "MI", status="coming_soon"),
 )
 
 
@@ -308,14 +302,14 @@ def faq_conn(tmp_path):
 
 def test_faq(faq_conn):
     entries = report.faq(faq_conn, today=_FAQ_TODAY)
-    assert len(entries) == 6
+    assert len(entries) == 5
+    assert not any("verified" in e["question"] for e in entries)
     assert [e["question"] for e in entries] == [
         "Which brand has the most shops, and how many states is it in?",
         "How many shops opened in the last 12 months, and which brand opened the most?",
         "How many announced shops are not open yet, and where?",
         "Which city has the most competing brands?",
         "How current is this?",
-        "How verified are the addresses?",
     ]
 
     assert entries[0]["answer"] == "Alpha Coffee: 5 shops across 2 states."
@@ -331,18 +325,13 @@ def test_faq(faq_conn):
 
     assert entries[4]["answer"] == "Last run 2026-06-10; 1 runs in the last 90 days."
 
-    assert entries[5]["answer"] == (
-        "2 placed by the Census geocoder, 2 by OpenStreetMap, "
-        "3 from the brand's own coordinates, 2 set by hand; 1 flagged for review."
-    )
-
     for entry in entries:
         assert entry["note"]  # every entry carries a note
 
 
 def test_faq_wired_into_build_context(faq_conn):
     context = report.build_context(faq_conn, generated_at=f"{_FAQ_TODAY}T00:00:00Z")
-    assert len(context["faq"]) == 6
+    assert len(context["faq"]) == 5
     assert context["faq"][0]["answer"] == "Alpha Coffee: 5 shops across 2 states."
 
 
@@ -448,7 +437,6 @@ def test_faq_section_rendered(faq_conn, tmp_path):
         "How many announced shops are not open yet, and where?",
         "Which city has the most competing brands?",
         "How current is this?",
-        "How verified are the addresses?",
     ):
         assert question in html
     assert "Alpha Coffee: 5 shops across 2 states." in html

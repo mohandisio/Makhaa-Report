@@ -393,25 +393,6 @@ def faq(conn: sqlite3.Connection, today: str | None = None) -> list[dict]:
                 "date rather than being deleted.",
     })
 
-    geo = {
-        r["geocode_source"]: r["n"]
-        for r in conn.execute(
-            "SELECT geocode_source, COUNT(*) AS n FROM locations GROUP BY geocode_source"
-        )
-    }
-    flagged = conn.execute(
-        "SELECT COUNT(*) FROM locations WHERE geocode_flagged"
-    ).fetchone()[0]
-    entries.append({
-        "question": "How verified are the addresses?",
-        "answer": (f"{geo.get('census', 0)} placed by the Census geocoder, "
-                   f"{geo.get('nominatim', 0)} by OpenStreetMap, "
-                   f"{geo.get('locator', 0)} from the brand's own coordinates, "
-                   f"{geo.get('manual', 0)} set by hand; {flagged} flagged for review."),
-        "note": "Every address is checked against the Census geocoder before it "
-                "is stored; OpenStreetMap is asked about the ones Census cannot confirm.",
-    })
-
     return entries
 
 
