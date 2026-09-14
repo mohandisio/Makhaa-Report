@@ -430,6 +430,19 @@ BRANDS: tuple[Brand, ...] = (
             "location card itself."
         ),
     ),
+    Brand(
+        slug="qahwah_drip",
+        display_name="Qahwah Drip",
+        locator_url="https://qahwahdrip.com",
+        method="scrape",
+        notes=(
+            "Not to be confused with Qahwah House. Single-page site for "
+            "one store: the head carries one schema.org "
+            "CafeOrCoffeeShop block with the address, phone, coordinates "
+            "and opening hours — everything the page publishes. No "
+            "coming-soon marker, so the row is always recorded open."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (

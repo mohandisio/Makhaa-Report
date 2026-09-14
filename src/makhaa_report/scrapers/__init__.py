@@ -29,6 +29,7 @@ from .brands.mokafe import Mokafe
 from .brands.moqana import Moqana
 from .brands.original_mocha import OriginalMocha
 from .brands.port import Port
+from .brands.qahwah_drip import QahwahDrip
 from .brands.qahwah_house import QahwahHouse
 from .brands.qahwah_valley import QahwahValley
 from .brands.qamaria import Qamaria
@@ -64,6 +65,7 @@ SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
     Moqana,
     OriginalMocha,
     Port,
+    QahwahDrip,
     QahwahHouse,
     QahwahValley,
     Qamaria,
