@@ -279,13 +279,19 @@ BRANDS: tuple[Brand, ...] = (
         method="scrape",
         alt_domains=("sanaahousecafe.com",),
         notes=(
-            "Divi blurbs in runs of four: heading, address, phone, hours. "
-            "Behind a WAF that always answers in Brotli, hence the brotli "
-            "dependency. Treat the total as a floor, not a count: the "
-            "locator omits stores the press confirms are trading, and it "
-            "publishes Sacramento under the Oakland Broadway address, so "
-            "that row is dropped and re-added from overrides.csv with "
-            "the real address."
+            "Two hand-pasted sections, no API or sitemap behind either, so "
+            "both are read: the 'Find Your Nearest Location' grid (Divi "
+            "blurbs in runs of four: heading, address, phone, hours), then "
+            "a footer carousel repeating the same stores, whose card count "
+            "varies between fetches. The grid's spelling wins for a store "
+            "in both; a carousel-only store is kept with its published "
+            "spelling, crude or not, for the address confirmer to "
+            "canonicalize later. Behind a WAF that always answers in "
+            "Brotli, hence the brotli dependency. Treat the total as a "
+            "floor, not a count: the locator omits stores the press "
+            "confirms are trading, and the grid publishes Sacramento "
+            "under the Oakland Broadway address, so that row is dropped "
+            "and re-added from overrides.csv with the real address."
         ),
     ),
     Brand(
