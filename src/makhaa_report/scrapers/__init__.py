@@ -16,6 +16,7 @@ from .brands.biladi import Biladi
 from .brands.house_of_mokhah import HouseOfMokhah
 from .brands.matari import Matari
 from .brands.mochabox import Mochabox
+from .brands.moka_and_co import MokaAndCo
 from .brands.original_mocha import OriginalMocha
 from .brands.port import Port
 from .brands.qahwah_house import QahwahHouse
@@ -28,7 +29,6 @@ from .single_page import (
     scrape_caffeena,
     scrape_delah,
     scrape_heyma,
-    scrape_moka_and_co,
     scrape_mokafe,
     scrape_qatra,
     scrape_sanaa_cafe,
@@ -49,7 +49,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "haraz": Haraz.scrape,
     "heyma": scrape_heyma,
     "matari": Matari.scrape,
-    "moka_and_co": scrape_moka_and_co,
+    "moka_and_co": MokaAndCo.scrape,
     "mokafe": scrape_mokafe,
     "qahwah_house": QahwahHouse.scrape,
     "qamaria": Qamaria.scrape,
