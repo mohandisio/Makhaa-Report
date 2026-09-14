@@ -10,6 +10,7 @@ from typing import Callable
 
 from ..fetch import Fetch
 from ..models import RawLocation
+from .brands.albunn import Albunn
 from .brands.arwa import Arwa
 from .brands.bayt_almocha import BaytAlmocha
 from .brands.biladi import Biladi
@@ -41,6 +42,7 @@ from .brands.socotra import Socotra
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
 
 SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
+    Albunn,
     Arwa,
     BaytAlmocha,
     Biladi,

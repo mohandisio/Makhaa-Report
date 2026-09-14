@@ -375,6 +375,19 @@ BRANDS: tuple[Brand, ...] = (
             "published."
         ),
     ),
+    Brand(
+        slug="albunn",
+        display_name="Albunn Coffee House",
+        locator_url="https://albunncoffee.com/",
+        method="scrape",
+        notes=(
+            "Single-page SpotHopper marketing site, no locations page. "
+            "The one store lives as a root-level schema.org `Restaurant` "
+            "block with a `PostalAddress`, coordinates and phone. Single "
+            "location, so there is nothing to dedupe and no "
+            "coming-soon marker to look for."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (
