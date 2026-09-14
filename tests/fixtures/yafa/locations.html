@@ -1,0 +1,42 @@
+<html>
+ <body>
+  <div>
+   Trimmed fixture: /locations page locator markup only. See tests/fixtures/README.md.
+  </div>
+
+  <!-- Site-wide LocalBusiness block, present on every page including this
+       one. Names only the flagship (Yafa Café) and would under-count if
+       used as the location list; kept here to prove the scraper ignores
+       it rather than treating it as the source of truth. -->
+  <script type="application/ld+json">{"address":"4415 4th Avenue\nBrooklyn, NY, 11220\nUnited States","image":"https://static1.squarespace.com/static/x/y/z","name":"Yafa Café","openingHours":"Mo 07:00-19:00","@context":"http://schema.org","@type":"LocalBusiness"}</script>
+
+  <h2 style="text-align:center;white-space:pre-wrap;">Our Locations</h2>
+
+  <!-- Photo tile linking to the same Sunset Park map pin as the card
+       below it, but carrying no text of its own (just an <img>, stripped
+       here). Proves an empty maps-link anchor doesn't produce a phantom
+       row and that the same map link appearing twice isn't double-counted. -->
+  <a class="sqs-block-image-link" data-sqsp-image-block-link href="https://maps.app.goo.gl/yZ6CVCcXJpj3ShL38" target="_blank"></a>
+
+  <div class="sqs-html-content" data-sqsp-text-block-content>
+   <h4 style="text-align:center;white-space:pre-wrap;"><a href="https://maps.app.goo.gl/yZ6CVCcXJpj3ShL38" target="_blank"><span class="sqsrte-text-color--black">Sunset Park <br>4415 4th Ave</span></a></h4>
+   <p style="text-align:center;white-space:pre-wrap;"><span class="sqsrte-text-color--black">Our flagship café open everyday serving food and drinks. Located in front of the 45th Street R train station. </span></p>
+  </div>
+
+  <a class="sqs-block-image-link" data-sqsp-image-block-link href="https://maps.app.goo.gl/qwRNN2Ni8dzG8A2g8" target="_blank"></a>
+
+  <div class="sqs-html-content" data-sqsp-text-block-content>
+   <h4 style="text-align:center;white-space:pre-wrap;"><a href="https://maps.app.goo.gl/qwRNN2Ni8dzG8A2g8" target="_blank"><span class="sqsrte-text-color--black">Downtown Brooklyn<br>505 State St.</span></a></h4>
+   <p style="text-align:center;white-space:pre-wrap;"><span class="sqsrte-text-color--black">Our Downtown Brooklyn outpost is located in the Alloy Building, open everyday from 7am-5pm serving coffee and drinks with outdoor seating. </span></p>
+  </div>
+
+  <!-- Sitewide footer contact block (same on every page). The only
+       server-rendered text on the page carrying the flagship's ZIP;
+       Downtown Brooklyn has no equivalent block, which is why it is
+       published without one. -->
+  <div class="sqs-html-content" data-sqsp-text-block-content>
+   <h4 data-rte-preserve-empty="true">Yafa</h4>
+   <p data-rte-preserve-empty="true"><a target="_blank" href="https://maps.app.goo.gl/ddCbx5QXM7KzvJMH8">4415 4th Ave<br><span class="sqsrte-text-color--white">Brooklyn, NY 11220</span></a><br><a target="_blank" href="mailto:hello@yafabrooklyn.com?">hello@yafabrooklyn.com</a><br><a target="_blank" href="tel:3474643999">(347) 464-3999</a></p>
+  </div>
+ </body>
+</html>

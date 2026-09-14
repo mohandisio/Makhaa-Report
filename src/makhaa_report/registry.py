@@ -388,6 +388,21 @@ BRANDS: tuple[Brand, ...] = (
             "coming-soon marker to look for."
         ),
     ),
+    Brand(
+        slug="yafa",
+        display_name="Yafa",
+        locator_url="https://yafabrooklyn.com/locations",
+        method="scrape",
+        notes=(
+            "yafabrooklyn.com — not the unrelated Yafa Coffee in Oakland. "
+            "Cards publish street only; city is fixed to Brooklyn since "
+            "the site has only that one city. One store has no ZIP "
+            "anywhere on the site; the flagship's ZIP comes from the "
+            "sitewide footer's own contact block. A sitewide ld+json "
+            "`LocalBusiness` block names only the flagship and is not "
+            "used as the location list."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (

@@ -38,6 +38,7 @@ from .brands.raha import Raha
 from .brands.sanaa_cafe import SanaaCafe
 from .brands.shibam import Shibam
 from .brands.socotra import Socotra
+from .brands.yafa import Yafa
 
 ScrapeFn = Callable[[Fetch], list[RawLocation]]
 
@@ -70,4 +71,5 @@ SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
     SanaaCafe,
     Shibam,
     Socotra,
+    Yafa,
 )}
