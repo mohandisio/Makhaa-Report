@@ -1,16 +1,14 @@
-"""Offline parse checks against saved locator pages.
+"""Offline parse check against a saved locator page.
 
-When a brand redesigns its locator: re-save the fixture, fix the scraper,
+When MOKAFÉ redesigns its locator: re-save the fixture, fix the scraper,
 and update the expectations here.
 """
 
-from makhaa_report.scrapers.single_page import (
-    scrape_mokafe,
-)
+from makhaa_report.scrapers.brands.mokafe import Mokafe
 
 
 def test_mokafe_splits_name_from_address(fixture_fetch):
-    rows = scrape_mokafe(fixture_fetch("mokafe"))
+    rows = Mokafe.scrape(fixture_fetch("mokafe"))
 
     assert len(rows) == 10
 
@@ -25,5 +23,3 @@ def test_mokafe_splits_name_from_address(fixture_fetch):
     # Two Brooklyn stores share Manhattan Ave; both must survive.
     manhattan_ave = [r for r in rows if r.street.endswith("Manhattan Ave")]
     assert len(manhattan_ave) == 2
-
-
