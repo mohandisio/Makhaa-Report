@@ -12,6 +12,7 @@ from ..fetch import Fetch
 from ..models import RawLocation
 from .brands.haraz import Haraz
 from .brands.biladi import Biladi
+from .brands.house_of_mokhah import HouseOfMokhah
 from .brands.original_mocha import OriginalMocha
 from .brands.port import Port
 from .brands.qahwah_house import QahwahHouse
@@ -24,7 +25,6 @@ from .single_page import (
     scrape_caffeena,
     scrape_delah,
     scrape_heyma,
-    scrape_house_of_mokhah,
     scrape_matari,
     scrape_mochabox,
     scrape_moka_and_co,
@@ -41,7 +41,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "queen": Queen.scrape,
     "original_mocha": OriginalMocha.scrape,
     "mochabox": scrape_mochabox,
-    "house_of_mokhah": scrape_house_of_mokhah,
+    "house_of_mokhah": HouseOfMokhah.scrape,
     "biladi": Biladi.scrape,
     "arwa": scrape_arwa,
     "caffeena": scrape_caffeena,
