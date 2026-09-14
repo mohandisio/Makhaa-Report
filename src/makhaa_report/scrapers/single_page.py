@@ -14,8 +14,6 @@ log = logging.getLogger("makhaa")
 
 # Cheap pre-filter for text nodes worth handing to the address parser.
 _LOOKS_LIKE_ADDRESS = re.compile(r"\b[A-Z]{2}\s+\d{5}\b")
-# A line that opens like a street: "1050 Haywood Rd."
-_STREET_START = re.compile(r"^\d{1,6}\s+\S+", re.I)
 
 # /pages/locations redirects here. Store detail pages live at
 # mokanco.com/<slug>/, but every address is already on this page, so
@@ -540,56 +538,4 @@ def scrape_sanaa_cafe(fetch: Fetch) -> list[RawLocation]:
             )
         )
 
-    return rows
-
-
-MOCHABOX_URL = "https://mochaboxcoffee.com"
-
-# A postcode with too many digits: real on MochaBox's site, and worth
-# dropping rather than truncating into a plausible-looking wrong ZIP.
-_BAD_POSTAL = re.compile(r",?\s*\d{6,}\s*$")
-
-
-def scrape_mochabox(fetch: Fetch) -> list[RawLocation]:
-    """MochaBox Coffee.
-
-    Wix, with the street and the city line in separate elements, so the
-    two are joined before parsing. The site publishes a six-digit
-    postcode; it is dropped rather than trimmed into a wrong ZIP, which
-    costs nothing since the address parses without one.
-    """
-    soup = BeautifulSoup(fetch(MOCHABOX_URL), "lxml")
-    for tag in soup.find_all(["script", "style", "title"]):
-        tag.decompose()
-
-    texts = [
-        " ".join(str(node).split())
-        for node in soup.find_all(string=True)
-        if str(node).strip()
-    ]
-
-    rows: list[RawLocation] = []
-    for index, text in enumerate(texts):
-        if not _STREET_START.match(text):
-            continue
-        for tail in texts[index + 1 : index + 4]:
-            candidate = f"{text.rstrip('.')}, {_BAD_POSTAL.sub('', tail)}"
-            address = split_us_address(candidate)
-            if address is None:
-                continue
-            street, city, state, postal = address
-            return [
-                RawLocation(
-                    brand="mochabox",
-                    street=street,
-                    city=city,
-                    state=state,
-                    postal=postal,
-                    status="open",
-                    source_url=MOCHABOX_URL,
-                    fragment=f"{text} | {tail}",
-                )
-            ]
-
-    log.warning("mochabox: no address found")
     return rows
