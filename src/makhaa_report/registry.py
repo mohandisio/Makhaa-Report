@@ -305,6 +305,20 @@ BRANDS: tuple[Brand, ...] = (
             "coming_soon."
         ),
     ),
+    Brand(
+        slug="mocha_point",
+        display_name="Mocha Point Coffee",
+        locator_url="https://mochapointcoffee.com/locations/",
+        method="scrape",
+        notes=(
+            "Elementor page with no stable classes, so the address is "
+            "read as plain text rather than through a selector. A "
+            "second unit, \"Kansas\", is only a nav link to an Instagram "
+            "profile with no published street address, so it never "
+            "produces a row. No coming-soon marker, phone, hours or map "
+            "embed is published."
+        ),
+    ),
 )
 
 EXCLUSIONS: tuple[Exclusion, ...] = (

@@ -19,6 +19,7 @@ from .brands.heyma import Heyma
 from .brands.house_of_mokhah import HouseOfMokhah
 from .brands.jabal import Jabal
 from .brands.matari import Matari
+from .brands.mocha_point import MochaPoint
 from .brands.mochabox import Mochabox
 from .brands.moka_and_co import MokaAndCo
 from .brands.mokafe import Mokafe
@@ -45,6 +46,7 @@ SCRAPERS: dict[str, ScrapeFn] = {s.slug: s.scrape for s in (
     HouseOfMokhah,
     Jabal,
     Matari,
+    MochaPoint,
     Mochabox,
     MokaAndCo,
     Mokafe,
