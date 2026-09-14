@@ -39,7 +39,7 @@ Nothing generated is committed.
 ## Crawl posture
 
 Honest User-Agent with contact address, one request per second,
-single-threaded, weekly (~40 requests per sweep). If a brand actively
+single-threaded, weekly (~50 requests per sweep). If a brand actively
 challenges scraping, move it to manual entry in `data/manual/`
 rather than escalating.
 
