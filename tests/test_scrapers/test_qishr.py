@@ -5,11 +5,11 @@ the set. When one breaks: re-save the fixture slices, fix the pattern,
 and update the expectations here.
 """
 
-from makhaa_report.scrapers.spa_bundle import scrape_qishr
+from makhaa_report.scrapers.brands.qishr import Qishr
 
 
 def test_qishr_reads_the_footer_address(fixture_fetch):
-    rows = scrape_qishr(fixture_fetch("qishr"))
+    rows = Qishr.scrape(fixture_fetch("qishr"))
 
     assert len(rows) == 1
 

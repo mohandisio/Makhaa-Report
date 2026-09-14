@@ -12,9 +12,9 @@ from ..models import RawLocation
 from .brands.port import Port
 from .brands.qahwah_house import QahwahHouse
 from .brands.qamaria import Qamaria
+from .brands.qishr import Qishr
 from .brands.shibam import Shibam
 from .multi_page import scrape_haraz, scrape_original_mocha
-from .spa_bundle import scrape_qishr
 from .single_page import (
     scrape_arwa,
     scrape_biladi,
@@ -53,7 +53,7 @@ SCRAPERS: dict[str, ScrapeFn] = {
     "qamaria": Qamaria.scrape,
     "port": Port.scrape,
     "qatra": scrape_qatra,
-    "qishr": scrape_qishr,
+    "qishr": Qishr.scrape,
     "sanaa_cafe": scrape_sanaa_cafe,
     "shibam": Shibam.scrape,
 }
