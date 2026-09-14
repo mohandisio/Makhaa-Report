@@ -633,7 +633,6 @@ def scrape_mochabox(fetch: Fetch) -> list[RawLocation]:
     return rows
 
 
-BILADI_URL = "https://biladicoffeehouse.com"
 HOUSE_OF_MOKHAH_URL = "https://www.houseofmokhaycc.com/cafes"
 
 
@@ -696,11 +695,6 @@ def _innermost_address_texts(soup) -> list[str]:
             continue
         texts.append(text)
     return texts
-
-
-def scrape_biladi(fetch: Fetch) -> list[RawLocation]:
-    """Biladi Coffee House. Addresses carry a pipe-separated label prefix."""
-    return _single_page_stores(fetch, "biladi", BILADI_URL)
 
 
 def scrape_house_of_mokhah(fetch: Fetch) -> list[RawLocation]:
