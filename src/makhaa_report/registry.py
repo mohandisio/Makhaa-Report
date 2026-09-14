@@ -306,6 +306,15 @@ EXCLUSIONS: tuple[Exclusion, ...] = (
         reason="Legacy secondary domain of Sana'a Cafe — alias, not a separate brand.",
         related_brand="sanaa_cafe",
     ),
+    Exclusion(
+        domain="motwcoffee.com",
+        reason="MOTW Coffee & Pastries has 20+ locations selling Yemeni chai, but it is a pan-Muslim brand, not Yemeni-founded, so it is not part of the census.",
+    ),
+    Exclusion(
+        domain="portofmokha.com",
+        reason="Port of Mokha is a roaster and importer, not a cafe chain. Its name sits close to Port Coffee Co. (portcoffeeco.com).",
+        related_brand="port",
+    ),
 )
 
 
