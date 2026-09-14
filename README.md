@@ -76,4 +76,5 @@ uv run pytest
 
 Scraper tests run offline against saved pages in `tests/fixtures/<brand>/`
 (`manifest.json` maps URL → file). When a brand redesigns its site:
-re-save the page over the fixture, fix the one scraper function, re-run.
+re-save the page over the fixture, fix
+`src/makhaa_report/scrapers/brands/<slug>.py`, re-run.

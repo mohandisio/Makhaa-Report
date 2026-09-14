@@ -30,7 +30,7 @@ scrape catches that either — it is the open gap these tests do not close.
 
 1. Fetch the live page and confirm what changed.
 2. Trim it the same way — locator markup only — and overwrite the file.
-3. Fix the scraper and update the expectations in
-   `tests/test_scrapers/`.
+3. Fix `src/makhaa_report/scrapers/brands/<slug>.py` and update the
+   expectations in `tests/test_scrapers/test_<slug>.py`.
 4. Re-run the live scrape and check the new count is the one the
    refreshed fixture asserts.
