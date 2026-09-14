@@ -64,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "scrape":
+        from . import config
+        from .confirm import AddressConfirmer
         from .pipeline import run_scrape
 
         with ScrapeProgress() as progress:
@@ -71,12 +73,15 @@ def main(argv: list[str] | None = None) -> int:
                 db.connect(),
                 brands=args.brands,
                 progress=progress,
+                confirmer=AddressConfirmer(config.GEO_DIR),
             )
         # The live table's last frame is the summary; only the tally is left.
         render_scrape_summary(stats, table=False)
         return 1 if stats.brands_failed else 0
 
     if args.command == "manual-entry":
+        from . import config
+        from .confirm import AddressConfirmer
         from .manual import ManualEntryError, append_entry, parse_entry
         from .pipeline import run_scrape
 
@@ -89,7 +94,11 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"[dim]wrote[/] {path}")
         # Load the brand straight back through the normal path, so the
         # row is normalized, snapshotted and exported like any other.
-        stats = run_scrape(db.connect(), brands=[record["brand"]])
+        stats = run_scrape(
+            db.connect(),
+            brands=[record["brand"]],
+            confirmer=AddressConfirmer(config.GEO_DIR),
+        )
         render_scrape_summary(stats)
         return 1 if stats.brands_failed else 0
 
